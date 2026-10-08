@@ -1,5 +1,6 @@
+use super::{PROGRESS_HEIGHT, PROGRESS_WIDTH};
 use anyhow::Result;
-use gpui::Window;
+use gpui::{App, Window};
 use mue_core::Request;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use tray_icon::{
@@ -68,7 +69,7 @@ impl Tray {
     }
 }
 
-pub fn position_progress(window: &Window) {
+pub fn position_progress(window: &Window, cx: &App) {
     use windows::Win32::{
         Foundation::{HWND, POINT},
         Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint},
@@ -87,35 +88,40 @@ pub fn position_progress(window: &Window) {
         return;
     };
     let hwnd = HWND(handle.hwnd.get() as _);
-    unsafe {
-        let mut cursor = POINT::default();
-        let _ = GetCursorPos(&mut cursor);
-        let monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
-        let mut info = MONITORINFO {
-            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-            ..Default::default()
-        };
-        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
-            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-            return;
-        }
-        let (mut dpi_x, mut dpi_y) = (96, 96);
-        let _ = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y);
-        let scale = dpi_x as f32 / 96.0;
-        let width = (400.0 * scale) as i32;
-        let height = (300.0 * scale) as i32;
-        let margin = (16.0 * scale) as i32;
-        let _ = SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            info.rcWork.right - width - margin,
-            info.rcWork.bottom - height - margin,
-            width,
-            height,
-            SWP_NOACTIVATE,
-        );
-        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-    }
+    // Native resize/paint callbacks re-enter GPUI. Run after the root is installed and App is unborrowed.
+    cx.foreground_executor()
+        .spawn(async move {
+            unsafe {
+                let mut cursor = POINT::default();
+                let _ = GetCursorPos(&mut cursor);
+                let monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+                let mut info = MONITORINFO {
+                    cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                    ..Default::default()
+                };
+                if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+                    let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+                    return;
+                }
+                let (mut dpi_x, mut dpi_y) = (96, 96);
+                let _ = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y);
+                let scale = dpi_x as f32 / 96.0;
+                let width = (PROGRESS_WIDTH * scale) as i32;
+                let height = (PROGRESS_HEIGHT * scale) as i32;
+                let margin = (16.0 * scale) as i32;
+                let _ = SetWindowPos(
+                    hwnd,
+                    Some(HWND_TOPMOST),
+                    info.rcWork.right - width - margin,
+                    info.rcWork.bottom - height - margin,
+                    width,
+                    height,
+                    SWP_NOACTIVATE,
+                );
+                let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            }
+        })
+        .detach();
 }
 
 pub fn show_error(message: &str) {

@@ -239,12 +239,12 @@ impl Runtime {
             },
             |window, cx| {
                 window.set_window_title("Mue — Conversions");
-                platform::position_progress(window);
                 let view = cx.new(|_| ProgressView { engine });
                 progress_view = Some(view.clone());
                 cx.new(|cx| Root::new(view, window, cx))
             },
         )?;
+        handle.update(cx, |_, window, cx| platform::position_progress(window, cx))?;
         self.progress_window = Some((handle, progress_view.unwrap()));
         self.idle_since = None;
         Ok(())

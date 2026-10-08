@@ -10,6 +10,9 @@ mod windows;
 #[cfg(windows)]
 pub use windows::Tray;
 
+pub const PROGRESS_WIDTH: f32 = 480.0;
+pub const PROGRESS_HEIGHT: f32 = 360.0;
+
 #[cfg(not(windows))]
 pub struct Tray;
 
@@ -32,16 +35,19 @@ pub fn progress_bounds(cx: &App) -> Bounds<Pixels> {
             size(px(1280.0), px(720.0)),
         ));
     Bounds::new(
-        point(display.right() - px(420.0), display.bottom() - px(340.0)),
-        size(px(400.0), px(300.0)),
+        point(
+            display.right() - px(PROGRESS_WIDTH + 20.0),
+            display.bottom() - px(PROGRESS_HEIGHT + 40.0),
+        ),
+        size(px(PROGRESS_WIDTH), px(PROGRESS_HEIGHT)),
     )
 }
 
-pub fn position_progress(window: &Window) {
+pub fn position_progress(window: &Window, cx: &App) {
     #[cfg(windows)]
-    windows::position_progress(window);
+    windows::position_progress(window, cx);
     #[cfg(not(windows))]
-    let _ = window;
+    let _ = (window, cx);
 }
 
 pub fn show_error(message: &str) {

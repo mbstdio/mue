@@ -40,12 +40,12 @@
         <desktop4:Extension Category="windows.fileExplorerContextMenus">
           <desktop4:FileExplorerContextMenus>
             <desktop4:ItemType Type="*">
-              <desktop4:Verb Id="Mue.01.JPG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B2" />
-              <desktop4:Verb Id="Mue.02.PNG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B3" />
-              <desktop4:Verb Id="Mue.03.WebP" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B4" />
-              <desktop4:Verb Id="Mue.04.MP4" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B5" />
-              <desktop4:Verb Id="Mue.05.WebM" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B6" />
-              <desktop4:Verb Id="Mue.99.Profiles" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6A9" />
+              <desktop4:Verb Id="Mue01JPG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B2" />
+              <desktop4:Verb Id="Mue02PNG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B3" />
+              <desktop4:Verb Id="Mue03WebP" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B4" />
+              <desktop4:Verb Id="Mue04MP4" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B5" />
+              <desktop4:Verb Id="Mue05WebM" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B6" />
+              <desktop4:Verb Id="Mue99Profiles" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6A9" />
             </desktop4:ItemType>
           </desktop4:FileExplorerContextMenus>
         </desktop4:Extension>

@@ -18,7 +18,14 @@ $destination = Join-Path $root 'dist\windows-x64'
 $identity = Join-Path $destination 'identity'
 New-Item -ItemType Directory -Path $identity -Force | Out-Null
 foreach ($binary in @('mue.exe', 'mue_shell.dll')) {
-    Copy-Item -LiteralPath (Join-Path $root "target\$profile\$binary") -Destination $destination -Force
+    $source = Join-Path $root "target\$profile\$binary"
+    $target = Join-Path $destination $binary
+    # Explorer's COM host can keep an unchanged extension DLL locked between application rebuilds.
+    if ((Test-Path -LiteralPath $target) -and
+        (Get-FileHash -LiteralPath $source).Hash -eq (Get-FileHash -LiteralPath $target).Hash) {
+        continue
+    }
+    Copy-Item -LiteralPath $source -Destination $target -Force
 }
 $executable = Join-Path $destination 'mue.exe'
 & $mt.FullName -nologo -manifest (Join-Path $root 'packaging\windows\mue.manifest') "-outputresource:$executable;#1"
