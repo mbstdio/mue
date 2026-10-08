@@ -1,0 +1,23 @@
+[package]
+name = "mue-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "mue"
+path = "src/main.rs"
+
+[dependencies]
+mue-core = { path = "../mue-core" }
+anyhow.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+gpui = "=0.2.2"
+gpui-component = "=0.5.1"
+fs2 = "0.4"
+raw-window-handle = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+tray-icon = "0.21"

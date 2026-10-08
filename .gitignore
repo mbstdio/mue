@@ -1,0 +1,6 @@
+/target/
+/dist/
+/vendor/ffmpeg/
+*.pfx
+*.cer
+*.msix

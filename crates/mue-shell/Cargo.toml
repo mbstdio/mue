@@ -1,0 +1,16 @@
+[package]
+name = "mue-shell"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "mue_shell"
+crate-type = ["cdylib"]
+
+[target.'cfg(windows)'.dependencies]
+mue-core = { path = "../mue-core" }
+windows.workspace = true
+windows-core = "0.62.2"
+serde_json.workspace = true
+uuid.workspace = true

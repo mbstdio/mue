@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+         xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+         xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap uap10 desktop4 com rescap">
+  <Identity Name="Mbstdio.Mue" Publisher="CN=mbstdio" Version="0.1.0.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Mue</DisplayName>
+    <PublisherDisplayName>mbstdio</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources><Resource Language="en-us" /></Resources>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+  <Applications>
+    <Application Id="Mue" Executable="mue.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements DisplayName="Mue" Description="Image and video conversion"
+                         BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
+                         Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer AppId="B28AF997-F05D-4217-8CE9-1547EA69B6A8" DisplayName="Mue context menu">
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B2" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B3" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B4" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B5" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B6" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6A9" Path="mue_shell.dll" ThreadingModel="STA" />
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop4:ItemType Type="*">
+              <desktop4:Verb Id="Mue.01.JPG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B2" />
+              <desktop4:Verb Id="Mue.02.PNG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B3" />
+              <desktop4:Verb Id="Mue.03.WebP" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B4" />
+              <desktop4:Verb Id="Mue.04.MP4" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B5" />
+              <desktop4:Verb Id="Mue.05.WebM" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B6" />
+              <desktop4:Verb Id="Mue.99.Profiles" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6A9" />
+            </desktop4:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
