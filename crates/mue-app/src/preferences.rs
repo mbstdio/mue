@@ -118,6 +118,26 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         "Image quality (1–100)" => "Qualité d’image (1–100)",
         "Transparency background (RGB hex)" => "Fond de transparence (hex RVB)",
         "CRF (lower = higher quality)" => "CRF (plus bas = meilleure qualité)",
+        "VP9 maximum bitrate is available in CBR or two-pass VBR." => {
+            "Le débit maximum VP9 est disponible en CBR ou VBR deux passes."
+        }
+        "Rate control" => "Mode de débit",
+        "Constant quality (CRF)" => "Qualité constante (CRF)",
+        "VBR — 1 pass" => "VBR — 1 passe",
+        "VBR — 2 passes" => "VBR — 2 passes",
+        "Target video bitrate (kbps)" => "Débit vidéo cible (kbit/s)",
+        "Maximum video bitrate (kbps, blank = unlimited)" => {
+            "Débit vidéo maximum (kbit/s, vide = illimité)"
+        }
+        "CBR regulates bitrate around the target; maximum equals target." => {
+            "Le CBR régule le débit autour de la cible ; le maximum est égal à la cible."
+        }
+        "VP9 maximum limits the average GOP bitrate, not individual peaks." => {
+            "Le maximum VP9 limite le débit moyen des groupes d’images, pas les pics individuels."
+        }
+        "Two passes analyze the source first, then encode; conversion takes longer." => {
+            "Les deux passes analysent d’abord la source, puis encodent ; la conversion prend plus de temps."
+        }
         "Maximum FPS (blank = original)" => "FPS maximum (vide = original)",
         "Encoding speed" => "Vitesse d’encodage",
         "Fast" => "Rapide",

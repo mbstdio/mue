@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     FFMPEG_VERSION,
-    profiles::{EncodingSpeed, MediaKind, OutputFormat, Profile},
+    profiles::{EncodingSpeed, MediaKind, OutputFormat, Profile, RateControl},
 };
 
 #[derive(Clone)]
@@ -244,81 +244,119 @@ impl Engine {
             .prefix(".mue-")
             .suffix(&format!(".{}", job.profile.format.extension()))
             .tempfile_in(parent)?;
-        let mut command = tools.command("ffmpeg");
-        command
-            .args([
-                "-hide_banner",
-                "-nostdin",
-                "-loglevel",
-                "error",
-                "-nostats",
-                "-progress",
-                "pipe:1",
-                "-y",
-                "-i",
-            ])
-            .arg(&job.source);
         let duration = media
             .format
             .and_then(|f| f.duration)
             .and_then(|d| d.parse::<f64>().ok())
             .filter(|d| d.is_finite() && *d > 0.0);
         let fps = stream.avg_frame_rate.as_deref().and_then(parse_rate);
-        add_encoding_args(&mut command, &job.profile, fps);
-        command
-            .arg(temporary.path())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        ensure!(!job.cancel.load(Ordering::Relaxed), "Conversion cancelled");
-        let mut child = command.spawn().context("Cannot start FFmpeg")?;
-        let stderr = child.stderr.take().unwrap();
-        let log = thread::spawn(move || read_log(stderr));
-        let stdout = child.stdout.take().unwrap();
-        let (sender, receiver) = mpsc::channel();
-        let progress = thread::spawn(move || {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                if let Some(value) = line
-                    .strip_prefix("out_time_us=")
-                    .and_then(|s| s.parse::<f64>().ok())
-                {
-                    let _ = sender.send(value / 1_000_000.0);
-                }
-            }
-        });
-        let started = Instant::now();
-        let status = loop {
-            if job.cancel.load(Ordering::Relaxed) {
-                let _ = child.kill();
-            }
-            for seconds in receiver.try_iter() {
-                if let Some(duration) =
-                    duration.filter(|_| job.profile.format.kind() == MediaKind::Video)
-                {
-                    let fraction = (seconds / duration).clamp(0.0, 0.99) as f32;
-                    self.update(job.id, |item| {
-                        item.progress = Some(fraction);
-                        item.remaining_seconds =
-                            (fraction > 0.01 && started.elapsed().as_secs() >= 2).then(|| {
-                                (started.elapsed().as_secs_f32() * (1.0 - fraction) / fraction)
-                                    as u64
-                            });
-                    });
-                }
-            }
-            match child.try_wait() {
-                Ok(Some(status)) => break status,
-                Ok(None) => thread::sleep(Duration::from_millis(100)),
-                Err(error) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(error.into());
-                }
-            }
+        let passes = if job.profile.format.kind() == MediaKind::Video
+            && job.profile.rate_control == RateControl::VbrTwoPass
+        {
+            2
+        } else {
+            1
         };
-        let _ = progress.join();
-        let log = log.join().unwrap_or_default();
-        ensure!(!job.cancel.load(Ordering::Relaxed), "Conversion cancelled");
-        ensure!(status.success(), "FFmpeg failed: {}", log.trim());
+        // A private directory owns all encoder-specific sidecars, including on cancellation.
+        let statistics = if passes == 2 {
+            Some(
+                tempfile::Builder::new()
+                    .prefix(".mue-pass-")
+                    .tempdir_in(parent)?,
+            )
+        } else {
+            None
+        };
+        let started = Instant::now();
+        for pass in 1..=passes {
+            let mut command = tools.command("ffmpeg");
+            command
+                .args([
+                    "-hide_banner",
+                    "-nostdin",
+                    "-loglevel",
+                    "error",
+                    "-nostats",
+                    "-progress",
+                    "pipe:1",
+                    "-y",
+                    "-i",
+                ])
+                .arg(&job.source);
+            add_encoding_args(&mut command, &job.profile, fps, passes == 2 && pass == 1);
+            if let Some(statistics) = &statistics {
+                command.args(["-pass", &pass.to_string()]);
+                command
+                    .arg(if job.profile.format == OutputFormat::Mp4H265 {
+                        "-x265-stats"
+                    } else {
+                        "-passlogfile"
+                    })
+                    .arg(statistics.path().join("stats"));
+            }
+            if passes == 2 && pass == 1 {
+                command.args(["-f", "null", "-"]);
+            } else {
+                command.arg(temporary.path());
+            }
+            command.stdout(Stdio::piped()).stderr(Stdio::piped());
+            ensure!(!job.cancel.load(Ordering::Relaxed), "Conversion cancelled");
+            let mut child = command.spawn().context("Cannot start FFmpeg")?;
+            let stderr = child.stderr.take().unwrap();
+            let log = thread::spawn(move || read_log(stderr));
+            let stdout = child.stdout.take().unwrap();
+            let (sender, receiver) = mpsc::channel();
+            let progress = thread::spawn(move || {
+                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                    if let Some(value) = line
+                        .strip_prefix("out_time_us=")
+                        .and_then(|s| s.parse::<f64>().ok())
+                    {
+                        let _ = sender.send(value / 1_000_000.0);
+                    }
+                }
+            });
+            let status = loop {
+                if job.cancel.load(Ordering::Relaxed) {
+                    let _ = child.kill();
+                }
+                for seconds in receiver.try_iter() {
+                    if let Some(duration) =
+                        duration.filter(|_| job.profile.format.kind() == MediaKind::Video)
+                    {
+                        let fraction = ((f64::from(pass - 1)
+                            + (seconds / duration).clamp(0.0, 1.0))
+                            / f64::from(passes))
+                        .clamp(0.0, 0.99) as f32;
+                        self.update(job.id, |item| {
+                            item.progress = Some(fraction);
+                            item.remaining_seconds =
+                                (fraction > 0.01 && started.elapsed().as_secs() >= 2).then(|| {
+                                    (started.elapsed().as_secs_f32() * (1.0 - fraction) / fraction)
+                                        as u64
+                                });
+                        });
+                    }
+                }
+                match child.try_wait() {
+                    Ok(Some(status)) => break status,
+                    Ok(None) => thread::sleep(Duration::from_millis(100)),
+                    Err(error) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(error.into());
+                    }
+                }
+            };
+            let _ = progress.join();
+            let log = log.join().unwrap_or_default();
+            ensure!(!job.cancel.load(Ordering::Relaxed), "Conversion cancelled");
+            ensure!(
+                status.success(),
+                "FFmpeg failed (pass {pass}/{passes}): {}",
+                log.trim()
+            );
+        }
         ensure!(
             temporary.as_file().metadata()?.len() > 0,
             "FFmpeg produced an empty file"
@@ -478,7 +516,12 @@ fn read_log(mut reader: impl Read) -> String {
     String::from_utf8_lossy(&tail).into_owned()
 }
 
-fn add_encoding_args(command: &mut Command, profile: &Profile, source_fps: Option<f64>) {
+fn add_encoding_args(
+    command: &mut Command,
+    profile: &Profile,
+    source_fps: Option<f64>,
+    analysis_pass: bool,
+) {
     let width = profile
         .max_width
         .map_or("iw".into(), |w| format!("min(iw\\,{w})"));
@@ -538,16 +581,54 @@ fn add_encoding_args(command: &mut Command, profile: &Profile, source_fps: Optio
                 &profile.quality.to_string(),
             ]);
         }
-        OutputFormat::Mp4 | OutputFormat::Webm => {
-            let mp4 = profile.format == OutputFormat::Mp4;
+        OutputFormat::Mp4 | OutputFormat::Mp4H265 | OutputFormat::Webm => {
+            let mp4 = profile.format.is_mp4();
+            let h265 = profile.format == OutputFormat::Mp4H265;
             command.args([
                 "-c:v",
-                if mp4 { "libx264" } else { "libvpx-vp9" },
-                "-crf",
-                &profile.video_crf.to_string(),
+                if h265 {
+                    "libx265"
+                } else if mp4 {
+                    "libx264"
+                } else {
+                    "libvpx-vp9"
+                },
                 "-pix_fmt",
                 "yuv420p",
             ]);
+            if profile.rate_control == RateControl::Crf {
+                command.args(["-crf", &profile.video_crf.to_string()]);
+                if !mp4 {
+                    command.args(["-b:v", "0"]);
+                }
+            } else {
+                command.args(["-b:v", &format!("{}k", profile.video_bitrate_kbps)]);
+            }
+            let maximum = if profile.rate_control == RateControl::Cbr {
+                Some(profile.video_bitrate_kbps)
+            } else {
+                profile.max_video_bitrate_kbps
+            };
+            if let Some(maximum) = maximum {
+                command.args([
+                    "-maxrate",
+                    &format!("{maximum}k"),
+                    "-bufsize",
+                    &format!("{}k", u64::from(maximum) * 2),
+                ]);
+            }
+            if profile.rate_control == RateControl::Cbr {
+                command.args(["-minrate", &format!("{}k", profile.video_bitrate_kbps)]);
+                if h265 {
+                    command.args(["-x265-params", "strict-cbr=1"]);
+                } else if mp4 {
+                    // MP4 cannot signal nal-hrd=cbr; use VBV regulation without HRD padding.
+                    command.args(["-x264-params", "nal-hrd=vbr"]);
+                }
+            }
+            if h265 && !analysis_pass {
+                command.args(["-tag:v", "hvc1"]);
+            }
             if mp4 {
                 command.args([
                     "-preset",
@@ -556,13 +637,12 @@ fn add_encoding_args(command: &mut Command, profile: &Profile, source_fps: Optio
                         EncodingSpeed::Balanced => "medium",
                         EncodingSpeed::Slow => "slow",
                     },
-                    "-movflags",
-                    "+faststart",
                 ]);
+                if !analysis_pass {
+                    command.args(["-movflags", "+faststart"]);
+                }
             } else {
                 command.args([
-                    "-b:v",
-                    "0",
                     "-deadline",
                     "good",
                     "-cpu-used",
@@ -573,7 +653,7 @@ fn add_encoding_args(command: &mut Command, profile: &Profile, source_fps: Optio
                     },
                 ]);
             }
-            if profile.keep_audio {
+            if profile.keep_audio && !analysis_pass {
                 command.args([
                     "-map",
                     "0:a:0?",

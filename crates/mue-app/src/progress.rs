@@ -224,9 +224,9 @@ impl Render for ProgressView {
                                     .rounded(px(6.0))
                                     .small()
                                     .icon(Icon::default().path(if self.expanded {
-                                        "icons/chevron-up.svg"
-                                    } else {
                                         "icons/chevron-down.svg"
+                                    } else {
+                                        "icons/chevron-up.svg"
                                     }))
                                     .tooltip(t(if self.expanded {
                                         "Hide queue"

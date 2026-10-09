@@ -33,6 +33,7 @@
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B4" Path="mue_shell.dll" ThreadingModel="STA" />
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B5" Path="mue_shell.dll" ThreadingModel="STA" />
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B6" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B7" Path="mue_shell.dll" ThreadingModel="STA" />
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6A9" Path="mue_shell.dll" ThreadingModel="STA" />
             </com:SurrogateServer>
           </com:ComServer>
@@ -44,7 +45,8 @@
               <desktop4:Verb Id="Mue02PNG" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B3" />
               <desktop4:Verb Id="Mue03WebP" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B4" />
               <desktop4:Verb Id="Mue04MP4" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B5" />
-              <desktop4:Verb Id="Mue05WebM" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B6" />
+              <desktop4:Verb Id="Mue05MP4H265" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B7" />
+              <desktop4:Verb Id="Mue06WebM" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B6" />
               <desktop4:Verb Id="Mue99Profiles" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6A9" />
             </desktop4:ItemType>
           </desktop4:FileExplorerContextMenus>

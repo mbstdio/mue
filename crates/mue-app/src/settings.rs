@@ -18,7 +18,7 @@ use mue_core::{
     conversion::Engine,
     profiles::{
         EncodingSpeed, GeneralSettings, InterfaceLanguage, MediaKind, OutputFormat, Profile,
-        Settings, ThemePreference,
+        RateControl, Settings, ThemePreference,
     },
 };
 
@@ -122,6 +122,13 @@ impl SettingsView {
             ),
             ("background", self.draft.jpeg_background.clone()),
             ("crf", self.draft.video_crf.to_string()),
+            ("video-bitrate", self.draft.video_bitrate_kbps.to_string()),
+            (
+                "max-video-bitrate",
+                self.draft
+                    .max_video_bitrate_kbps
+                    .map_or(String::new(), |v| v.to_string()),
+            ),
             (
                 "fps",
                 self.draft.max_fps.map_or(String::new(), |v| v.to_string()),
@@ -276,7 +283,24 @@ impl SettingsView {
                 .trim_start_matches('#')
                 .to_uppercase();
         } else {
-            profile.video_crf = value("crf").parse().context("Invalid CRF")?;
+            if profile.rate_control == RateControl::Crf {
+                profile.video_crf = value("crf").parse().context("Invalid CRF")?;
+            } else {
+                profile.video_bitrate_kbps = value("video-bitrate")
+                    .trim()
+                    .parse()
+                    .context("Invalid video bitrate")?;
+            }
+            profile.max_video_bitrate_kbps = if profile.rate_control == RateControl::Cbr
+                || (profile.format == OutputFormat::Webm
+                    && matches!(
+                        profile.rate_control,
+                        RateControl::Crf | RateControl::VbrOnePass
+                    )) {
+                None
+            } else {
+                optional("max-video-bitrate")?
+            };
             profile.max_fps = optional("fps")?;
             profile.audio_bitrate_kbps =
                 value("bitrate").parse().context("Invalid audio bitrate")?;
@@ -687,13 +711,13 @@ impl Render for SettingsView {
                 )),
             )
             .child(self.field("Name", "name"));
-        let mut formats = div().flex().gap_2();
+        let mut formats = div().flex().flex_wrap().gap_2();
         for format in OutputFormat::ALL
             .into_iter()
             .filter(|format| format.kind() == self.draft.format.kind())
         {
             formats = formats.child(
-                Button::new(format.extension())
+                Button::new(format.command_name())
                     .label(format.label())
                     .when(self.draft.format == format, |button| button.primary())
                     .on_click(cx.listener(move |view, _, window, cx| {
@@ -733,13 +757,77 @@ impl Render for SettingsView {
                 form = form.child(self.field("Transparency background (RGB hex)", "background"));
             }
         } else {
-            form = form.child(
-                div()
-                    .flex()
-                    .gap_4()
-                    .child(self.field("CRF (lower = higher quality)", "crf"))
-                    .child(self.field("Maximum FPS (blank = original)", "fps")),
-            );
+            let mut modes = div().flex().flex_wrap().gap_2();
+            for (id, mode, label) in [
+                ("crf-mode", RateControl::Crf, "Constant quality (CRF)"),
+                ("cbr-mode", RateControl::Cbr, "CBR"),
+                ("vbr-one-pass", RateControl::VbrOnePass, "VBR — 1 pass"),
+                ("vbr-two-pass", RateControl::VbrTwoPass, "VBR — 2 passes"),
+            ] {
+                modes = modes.child(
+                    Button::new(id)
+                        .label(self.t(label))
+                        .when(self.draft.rate_control == mode, |b| b.primary())
+                        .on_click(cx.listener(move |view, _, _, cx| {
+                            view.draft.rate_control = mode;
+                            cx.notify();
+                        })),
+                );
+            }
+            form = form
+                .child(div().text_sm().child(self.t("Rate control")))
+                .child(modes);
+            if self.draft.rate_control == RateControl::Crf {
+                form = form.child(self.field("CRF (lower = higher quality)", "crf"));
+            } else {
+                form = form.child(self.field("Target video bitrate (kbps)", "video-bitrate"));
+            }
+            if self.draft.rate_control == RateControl::Cbr {
+                form =
+                    form.child(
+                        div()
+                            .text_sm()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.t(
+                                "CBR regulates bitrate around the target; maximum equals target.",
+                            )),
+                    );
+            } else if self.draft.format != OutputFormat::Webm
+                || self.draft.rate_control == RateControl::VbrTwoPass
+            {
+                form = form.child(self.field(
+                    "Maximum video bitrate (kbps, blank = unlimited)",
+                    "max-video-bitrate",
+                ));
+                if self.draft.format == OutputFormat::Webm {
+                    form = form.child(
+                        div()
+                            .text_sm()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(self.t(
+                                "VP9 maximum limits the average GOP bitrate, not individual peaks.",
+                            )),
+                    );
+                }
+            }
+            if self.draft.format == OutputFormat::Webm
+                && matches!(
+                    self.draft.rate_control,
+                    RateControl::Crf | RateControl::VbrOnePass
+                )
+            {
+                form = form.child(
+                    div()
+                        .text_sm()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(self.t("VP9 maximum bitrate is available in CBR or two-pass VBR.")),
+                );
+            }
+            if self.draft.rate_control == RateControl::VbrTwoPass {
+                form = form.child(div().text_sm().text_color(cx.theme().muted_foreground)
+                    .child(self.t("Two passes analyze the source first, then encode; conversion takes longer.")));
+            }
+            form = form.child(self.field("Maximum FPS (blank = original)", "fps"));
             let mut speeds = div().flex().gap_2();
             for (id, speed, label) in [
                 ("fast", EncodingSpeed::Fast, "Fast"),

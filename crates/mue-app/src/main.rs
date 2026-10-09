@@ -62,7 +62,7 @@ fn parse_request() -> Result<Request> {
             }
             ensure!(
                 !files.is_empty(),
-                "Usage: mue --convert <jpg|png|webp|mp4|webm> <files...>"
+                "Usage: mue --convert <jpg|png|webp|mp4|mp4-h265|webm> <files...>"
             );
             Request::Convert {
                 choice: ConversionChoice::Format(format),

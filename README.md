@@ -4,10 +4,12 @@ Image and video conversion from the Windows 11 context menu, built with Rust, GP
 
 ## Features
 
-- Direct conversion to JPG, PNG, WebP, MP4 (H.264 / AAC), and WebM (VP9 / Opus).
+- Direct conversion to JPG, PNG, WebP, MP4 (H.264 / AAC), MP4 (H.265 / AAC), and WebM (VP9 / Opus).
 - A final **Profiles** submenu containing saved image or video conversion profiles.
 - GPUI settings for image quality, PNG compression, maximum dimensions, JPEG transparency
-  background, video quality and encoding speed, frame rate limit, audio, and metadata.
+  background, video quality, CBR/VBR bitrate control (one or two passes), encoding speed,
+  frame rate limit, audio, and metadata.
+- H.264 and H.265 (HEVC) MP4 conversions each have their own direct conversion settings.
 - Categorized settings with General, Image, and Video navigation and the application version.
 - System/light/dark appearance, English/French interface languages, optional Windows sign-in
   startup, and configurable automatic hiding of completed conversions.
@@ -57,6 +59,7 @@ Command-line entry points:
 .\target\debug\mue.exe --progress
 .\target\debug\mue.exe --convert jpg "C:\Pictures\photo.png"
 .\target\debug\mue.exe --convert mp4 "C:\Videos\clip.mov" "C:\Videos\other.mkv"
+.\target\debug\mue.exe --convert mp4-h265 "C:\Videos\clip.mov"
 .\target\debug\mue.exe --quit
 ```
 
@@ -75,9 +78,13 @@ The build script embeds the application identity in the copied executable, gener
 icons, and includes the matching FFmpeg and ffprobe binaries and their license information.
 
 The install script registers a sparse package for the current user. It does not change the
-default applications for media files. Enable Windows Developer Mode before loose registration.
-Reopen File Explorer if Windows has cached the old menu. If it still does not refresh, sign out
-and sign back in. Do not move the distribution directory after registration.
+default applications for media files. On repeat installation, it removes the existing registration
+for the current user before registering the new manifest, allowing same-version development updates
+without error `0x80073CFB`. Settings and converted files are preserved.
+Enable Windows Developer Mode before loose registration. The script notifies Explorer to invalidate
+its cached associations and context-menu handlers. Close and reopen the menu after installation.
+If Windows still shows an old menu, restart **Windows Explorer** from Task Manager; if necessary,
+sign out and back in to unload an old COM host. Do not move the distribution directory after registration.
 
 For an image, the expected menu is:
 
@@ -90,7 +97,8 @@ Mue
     └── Your saved image profiles
 ```
 
-Videos show MP4 and WebM instead. The Profiles entry is disabled when no compatible profile
+Videos show direct MP4 (H.264 / AAC), MP4 (H.265 / AAC), and WebM (VP9 / Opus) commands instead.
+The Profiles entry is disabled when no compatible profile
 exists. A selection must contain only supported images or only supported videos; mixed selections
 have no compatible conversion and hide Mue. Reopen the menu after saving or deleting a profile.
 
@@ -154,9 +162,26 @@ not offered as separate output formats. Video inputs: MP4/M4V, MOV, MKV, AVI, We
 WMV, TS/MTS/M2TS. Decoding also depends on the bundled FFmpeg's capabilities.
 
 - Maximum dimensions preserve aspect ratio and do not upscale. Video dimensions are even for
-  H.264/VP9 compatibility. Display rotation is applied by FFmpeg.
+  H.264/H.265/VP9 compatibility. Display rotation is applied by FFmpeg.
 - JPEG and WebP quality are lossy quality controls. PNG compression is lossless.
 - Lower video CRF means higher quality. MP4 allows 0–51, WebM allows 0–63.
+- MP4 H.264 (`libx264`) and MP4 H.265 (`libx265`) have separate direct commands and defaults,
+  both with AAC audio. H.265 initially uses CRF 28, balanced speed, and 128 kbps AAC. The former
+  automatically added **MP4 H.265** saved profile moves to direct conversion settings, preserving
+  its edits. Other saved H.265 profiles remain available as custom profiles. Both MP4 variants
+  still produce `.mp4` files; `mp4-h265` selects HEVC from the command line.
+- Video rate control offers constant quality (CRF), CBR, one-pass VBR, and two-pass VBR.
+  Target and maximum video bitrates use kbps (1–1000000) and exclude audio. VBR targets the
+  average bitrate, with an optional maximum at or above the target. CBR sets the maximum to
+  the target and regulates bitrate around it; it does not guarantee identical instantaneous
+  bitrate or add strict CBR padding in MP4.
+- H.264/H.265 support an optional maximum in CRF and both VBR modes using a two-second VBV
+  buffer (H.264 lossless CRF 0 cannot be capped). VP9 supports a maximum in CBR and two-pass
+  VBR only; its VBR maximum constrains average GOP bitrate rather than individual peaks.
+  A blank maximum leaves rate control uncapped.
+- Two-pass VBR analyzes video without audio in the first pass and writes the final video/audio
+  in the second. Progress spans both passes; time remaining is approximate because pass speeds
+  differ. Cancelling either pass removes its temporary output and statistics directory.
 - A frame rate limit only reduces the known source frame rate; it never intentionally increases it.
 - Videos use the first video stream and, when enabled, the first audio stream. Subtitles and
   additional audio tracks are not included in this first version. Metadata preservation is best
@@ -183,6 +208,14 @@ After rebuilding and relaunching Mue:
 6. Convert image and video files from settings. Verify the originals remain intact and the results
    use the edited settings. Check automatic hiding with the option enabled and disabled.
 7. Check Open settings folder, Show conversions, and Quit Mue from General.
+8. In Video, select each MP4 direct conversion and try CRF, CBR, one-pass VBR, and two-pass VBR;
+   check mode-dependent fields, bitrate validation, draft retention, and persistence after saving.
+   Repeat with WebM, checking that its optional maximum is offered only for two-pass VBR.
+9. Convert with the direct **MP4 (H.265 / AAC)** command from settings and Explorer, and verify
+   HEVC/AAC playback. Upgrade old settings and check that the initial H.265 profile moves to
+   direct defaults while custom profiles retain their edits. Cancel a two-pass conversion during
+   each pass and verify no `.mue-` output or `.mue-pass-` directory remains.
+10. Check the queue popup: the upward chevron expands it and the downward chevron collapses it.
 
 ## Cross-platform structure
 
