@@ -241,7 +241,9 @@ impl Runtime {
                     if expanded {
                         view.update(cx, |view, cx| view.show_queue(cx));
                     }
-                    platform::position_progress(window, view.read(cx).requested_height, true, cx);
+                    let view = view.read(cx);
+                    let height = ProgressView::window_height(&view.engine, view.expanded);
+                    platform::position_progress(window, height, true, cx);
                 })
                 .is_ok()
             {
@@ -250,10 +252,13 @@ impl Runtime {
         }
         let engine = self.engine.clone();
         let settings = self.settings.clone();
+        let height = ProgressView::window_height(&engine, expanded);
+        let mut bounds = platform::progress_bounds(cx);
+        bounds.size.height = px(height);
         let mut progress_view = None;
         let handle = cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(platform::progress_bounds(cx))),
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
                 show: cfg!(not(windows)),
                 focus: false,
                 is_resizable: false,
@@ -273,14 +278,14 @@ impl Runtime {
                     settings,
                     language: None,
                     expanded,
-                    requested_height: platform::PROGRESS_HEIGHT,
+                    requested_height: height,
                 });
                 progress_view = Some(view.clone());
                 cx.new(|cx| Root::new(view, window, cx))
             },
         )?;
         handle.update(cx, |_, window, cx| {
-            platform::position_progress(window, platform::PROGRESS_HEIGHT, true, cx)
+            platform::position_progress(window, height, true, cx)
         })?;
         self.progress_window = Some((handle, progress_view.unwrap()));
         Ok(())

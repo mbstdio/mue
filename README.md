@@ -14,6 +14,8 @@ Image and video conversion from the Windows 11 context menu, built with Rust, GP
 - One application instance, a Windows tray icon, and a sequential conversion queue.
 - A compact, non-focusing progress popup on the cursor's monitor, above the taskbar, with an expandable conversion queue. When automatic hiding is enabled, it closes as soon as the queue finishes; errors remain visible. Open Conversions from the tray to view the history.
 - Cancellation, estimated video time remaining, and revealing the output in File Explorer.
+- Progress popup actions use icons with tooltips. Clear finished conversions removes completed,
+  failed, and cancelled entries from the queue history while keeping active jobs and output files.
 - Original files preserved; filename collisions receive a numeric suffix. Results become
   visible only after successful encoding. Cancelled and failed temporary outputs are removed.
 

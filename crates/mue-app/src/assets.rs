@@ -21,6 +21,15 @@ const ICONS: &[(&str, &str)] = &[
     ("icons/minus.svg", "<path d='M5 12h14'/>"),
     ("icons/close.svg", "<path d='m6 6 12 12M6 18 18 6'/>"),
     ("icons/chevron-down.svg", "<path d='m6 9 6 6 6-6'/>"),
+    ("icons/chevron-up.svg", "<path d='m6 15 6-6 6 6'/>"),
+    (
+        "icons/folder-open.svg",
+        "<path d='M3 20V5a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v2M3 20l3-9h16l-3 9Z'/>",
+    ),
+    (
+        "icons/trash.svg",
+        "<path d='M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7'/>",
+    ),
 ];
 
 impl AssetSource for Assets {

@@ -1,8 +1,8 @@
 use crate::{preferences, ui::SharedSettings};
 use gpui::{Context, Render, SharedString, Window, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme, Sizable,
-    button::{Button, ButtonVariants},
+    ActiveTheme, Disableable, Icon, Sizable,
+    button::{Button, ButtonCustomVariant, ButtonVariants},
 };
 use mue_core::conversion::{Engine, JobStatus};
 use mue_core::profiles::InterfaceLanguage;
@@ -16,6 +16,28 @@ pub(crate) struct ProgressView {
 }
 
 impl ProgressView {
+    pub(crate) fn window_height(engine: &Engine, expanded: bool) -> f32 {
+        let state = engine.state.lock().unwrap();
+        Self::height_for(
+            expanded,
+            state.jobs.len(),
+            state
+                .jobs
+                .iter()
+                .any(|job| matches!(job.status, JobStatus::Failed(_))),
+        )
+    }
+
+    fn height_for(expanded: bool, job_count: usize, failed: bool) -> f32 {
+        if expanded {
+            (64.0 + job_count as f32 * 148.0).clamp(150.0, crate::platform::PROGRESS_MAX_HEIGHT)
+        } else if failed {
+            210.0
+        } else {
+            crate::platform::PROGRESS_HEIGHT
+        }
+    }
+
     pub(crate) fn show_queue(&mut self, cx: &mut Context<Self>) {
         self.expanded = true;
         cx.notify();
@@ -26,6 +48,9 @@ impl Render for ProgressView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let language = self.settings.lock().unwrap().general.language;
         let t = |text| preferences::text(language, text);
+        let button_style = ButtonCustomVariant::new(cx)
+            .hover(cx.theme().accent)
+            .active(cx.theme().border);
         if self.language != Some(language) {
             window.set_window_title(&format!("Mue — {}", t("Conversions")));
             crate::platform::update_titlebar(window, cx);
@@ -42,14 +67,7 @@ impl Render for ProgressView {
             .iter()
             .filter(|job| matches!(job.status, JobStatus::Failed(_)))
             .count();
-        let height = if self.expanded {
-            (64.0 + state.jobs.len() as f32 * 148.0)
-                .clamp(150.0, crate::platform::PROGRESS_MAX_HEIGHT)
-        } else if failed > 0 {
-            210.0
-        } else {
-            crate::platform::PROGRESS_HEIGHT
-        };
+        let height = Self::height_for(self.expanded, state.jobs.len(), failed > 0);
         if self.requested_height != height {
             crate::platform::position_progress(window, height, false, cx);
             self.requested_height = height;
@@ -143,7 +161,11 @@ impl Render for ProgressView {
             if self.expanded && job.status.active() {
                 row = row.child(
                     Button::new(SharedString::from(format!("cancel-{id}")))
-                        .label(t("Cancel"))
+                        .custom(button_style)
+                        .rounded(px(6.0))
+                        .small()
+                        .icon(Icon::default().path("icons/close.svg"))
+                        .tooltip(t("Cancel"))
                         .on_click(cx.listener(move |view, _, _, cx| {
                             view.engine.cancel(id);
                             cx.notify();
@@ -155,7 +177,11 @@ impl Render for ProgressView {
                 let output = output.clone();
                 row = row.child(
                     Button::new(SharedString::from(format!("reveal-{id}")))
-                        .label(t("Show file"))
+                        .custom(button_style)
+                        .rounded(px(6.0))
+                        .small()
+                        .icon(Icon::default().path("icons/folder-open.svg"))
+                        .tooltip(t("Show file"))
                         .on_click(move |_, _, cx| cx.reveal_path(&output)),
                 );
             }
@@ -180,10 +206,29 @@ impl Render for ProgressView {
                             .flex()
                             .gap_1()
                             .child(
-                                Button::new("toggle-queue")
-                                    .ghost()
+                                Button::new("clear-finished")
+                                    .custom(button_style)
+                                    .rounded(px(6.0))
                                     .small()
-                                    .label(t(if self.expanded {
+                                    .icon(Icon::default().path("icons/trash.svg"))
+                                    .tooltip(t("Clear finished conversions"))
+                                    .disabled(!state.jobs.iter().any(|job| !job.status.active()))
+                                    .on_click(cx.listener(|view, _, _, cx| {
+                                        view.engine.clear_finished();
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("toggle-queue")
+                                    .custom(button_style)
+                                    .rounded(px(6.0))
+                                    .small()
+                                    .icon(Icon::default().path(if self.expanded {
+                                        "icons/chevron-up.svg"
+                                    } else {
+                                        "icons/chevron-down.svg"
+                                    }))
+                                    .tooltip(t(if self.expanded {
                                         "Hide queue"
                                     } else {
                                         "Show queue"
@@ -195,9 +240,11 @@ impl Render for ProgressView {
                             )
                             .child(
                                 Button::new("dismiss")
-                                    .ghost()
+                                    .custom(button_style)
+                                    .rounded(px(6.0))
                                     .small()
-                                    .label(t("Hide"))
+                                    .icon(Icon::default().path("icons/close.svg"))
+                                    .tooltip(t("Hide"))
                                     .on_click(|_, window, _| window.remove_window()),
                             ),
                     ),

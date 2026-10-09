@@ -93,6 +93,7 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         }
         "Show queue" => "Afficher la file",
         "Hide queue" => "Réduire la file",
+        "Clear finished conversions" => "Effacer les conversions terminées",
         "About" => "À propos",
         "Originals are preserved. Outputs are saved next to the source without overwriting files." => {
             "Les originaux sont conservés. Les résultats sont enregistrés à côté de la source sans écraser de fichiers."

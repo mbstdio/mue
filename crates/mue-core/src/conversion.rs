@@ -132,6 +132,14 @@ impl Engine {
         }
     }
 
+    pub fn clear_finished(&self) {
+        self.state
+            .lock()
+            .unwrap()
+            .jobs
+            .retain(|job| job.status.active());
+    }
+
     pub fn stop(&self) {
         self.shutdown.store(true, Ordering::Relaxed);
         let mut state = self.state.lock().unwrap();
