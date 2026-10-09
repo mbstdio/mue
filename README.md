@@ -10,6 +10,7 @@ Image and video conversion from the Windows 11 context menu, built with Rust, GP
   background, video quality, CBR/VBR bitrate control (one or two passes), encoding speed,
   frame rate limit, audio, and metadata.
 - H.264 and H.265 (HEVC) MP4 conversions each have their own direct conversion settings.
+- Custom output filename templates with prefixes, suffixes, profile names, and source/output dimensions.
 - Categorized settings with General, Image, and Video navigation and the application version.
 - System/light/dark appearance, English/French interface languages, optional Windows sign-in
   startup, and configurable automatic hiding of completed conversions.
@@ -157,6 +158,36 @@ User settings are stored in the platform's local data directory under `Mue/profi
 (`%LOCALAPPDATA%\Mue\profiles.json` on Windows). The file is validated and replaced atomically;
 an invalid file is reported instead of silently being overwritten.
 
+### Output filename templates
+
+Each saved profile and direct conversion default has an **Output filename template** field.
+The default, including for existing profiles, is `{filename}.{ext}`. Templates are preserved
+in drafts and copied when duplicating a profile. Available variables:
+
+| Variable | Value |
+| --- | --- |
+| `{filename}` | Original filename without its last extension |
+| `{ext}` | Output format extension, without the dot |
+| `{profile}` | Profile name (invalid filename characters are replaced with `_`) |
+| `{width}` / `{height}` | Actual encoded output dimensions in pixels, after resizing and rotation |
+| `{source_width}` / `{source_height}` | Original stream dimensions in pixels, before resizing and rotation |
+
+For example, `{filename}-web.{ext}` produces `image-web.jpg` for a JPG conversion.
+`web-{filename}` produces `web-image.jpg`: the output extension is appended when the
+rendered name does not already end with it (case-insensitive). An explicitly different
+extension also receives the correct output extension, e.g. `image.png.jpg` for JPG.
+`{filename}-{width}x{height}.{ext}` can produce `image-1280x720.jpg`. Output dimensions
+are read from the encoded temporary file only when requested by the template.
+
+Templates name a file, not a directory. Unknown variables, malformed braces, invalid filename
+characters, reserved Windows device names, and names longer than 255 UTF-16 code units are
+reported as errors. Substituted values are not interpreted as additional variables. Outputs
+remain next to the source; collisions add a numeric suffix before the final extension, such
+as `image-web (1).jpg`, without overwriting originals or previous conversions.
+The stem is shortened when needed to fit a collision suffix within the filename length limit.
+Source-dependent names are fully validated during conversion; fixed names and template syntax
+are validated when saving the profile.
+
 Image inputs: JPG/JPEG, PNG, WebP, BMP, TIFF. Only still images are in scope; animated inputs are
 not offered as separate output formats. Video inputs: MP4/M4V, MOV, MKV, AVI, WebM, MPEG/MPG,
 WMV, TS/MTS/M2TS. Decoding also depends on the bundled FFmpeg's capabilities.
@@ -216,6 +247,14 @@ After rebuilding and relaunching Mue:
    direct defaults while custom profiles retain their edits. Cancel a two-pass conversion during
    each pass and verify no `.mue-` output or `.mue-pass-` directory remains.
 10. Check the queue popup: the upward chevron expands it and the downward chevron collapses it.
+11. Save and duplicate image/video profiles with `{filename}-web.{ext}` and `web-{filename}`;
+    convert from settings and Explorer, restart Mue, and verify persistence and numeric collision
+    suffixes. Switch profiles without saving and check that the template draft is retained.
+12. Convert resized images and rotated videos with
+    `{filename}-{source_width}x{source_height}-to-{width}x{height}-{profile}.{ext}` and compare
+    names with the source stream and actual output dimensions. Try profile names containing
+    `/`, `:`, or braces, then invalid templates (unknown variables, unmatched braces, paths,
+    `CON`, or blank input) and verify clear errors with no overwritten files.
 
 ## Cross-platform structure
 

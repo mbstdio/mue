@@ -4,6 +4,7 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::naming::FilenameTemplate;
 use crate::{ConversionChoice, data_dir};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -124,10 +125,16 @@ fn default_video_bitrate() -> u32 {
     5000
 }
 
+fn default_filename_template() -> String {
+    "{filename}.{ext}".into()
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Profile {
     pub id: Uuid,
     pub name: String,
+    #[serde(default = "default_filename_template")]
+    pub filename_template: String,
     pub format: OutputFormat,
     pub quality: u8,
     pub png_compression: u8,
@@ -156,6 +163,7 @@ impl Profile {
         Self {
             id: Uuid::new_v4(),
             name: format!("{} profile", format.label()),
+            filename_template: default_filename_template(),
             format,
             quality: 85,
             png_compression: 6,
@@ -195,6 +203,8 @@ impl Profile {
     }
 
     pub fn validate(&self) -> Result<()> {
+        FilenameTemplate::parse(&self.filename_template)?
+            .validate(self.format.extension(), &self.name)?;
         ensure!(
             !self.name.trim().is_empty() && self.name.len() <= 120,
             "Profile name must contain 1–120 characters"

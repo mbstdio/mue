@@ -112,6 +112,16 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         }
         "Name" => "Nom",
         "Output format" => "Format de sortie",
+        "Output filename template" => "Modèle du nom de sortie",
+        "Variables: {filename} (original name without extension), {ext} (output extension), {profile} (profile name)." => {
+            "Variables : {filename} (nom original sans extension), {ext} (extension de sortie), {profile} (nom du profil)."
+        }
+        "Dimensions: {width} / {height} (converted file), {source_width} / {source_height} (original file)." => {
+            "Dimensions : {width} / {height} (fichier converti), {source_width} / {source_height} (fichier original)."
+        }
+        "Examples: {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. The output extension is added automatically if missing." => {
+            "Exemples : {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. L’extension de sortie est ajoutée automatiquement si elle manque."
+        }
         "Maximum width (blank = original)" => "Largeur maximale (vide = original)",
         "Maximum height (blank = original)" => "Hauteur maximale (vide = original)",
         "PNG compression (0–9, lossless)" => "Compression PNG (0–9, sans perte)",

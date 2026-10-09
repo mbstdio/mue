@@ -362,10 +362,33 @@ impl Engine {
             "FFmpeg produced an empty file"
         );
         temporary.as_file().sync_all()?;
+        let template = crate::naming::FilenameTemplate::parse(&job.profile.filename_template)?;
+        let output_dimensions = if template.needs_output_dimensions() {
+            // Inspect the encoded output rather than approximating scaling or rotation rules.
+            let output = tools.probe(temporary.path(), MediaKind::Video, &job.cancel)?;
+            Some(
+                output
+                    .streams
+                    .iter()
+                    .find(|stream| stream.codec_type.as_deref() == Some("video"))
+                    .context("The converted file contains no image or video stream")?
+                    .dimensions()
+                    .context("The converted file has no valid dimensions")?,
+            )
+        } else {
+            None
+        };
+        let name = template.render(
+            &job.source,
+            job.profile.format.extension(),
+            &job.profile.name,
+            stream.dimensions().as_ref(),
+            output_dimensions.as_ref(),
+        )?;
         // Cancellation and publication have one commit point. Once published, a job cannot be cancelled.
         let mut state = self.state.lock().unwrap();
         ensure!(!job.cancel.load(Ordering::Relaxed), "Conversion cancelled");
-        let output = publish(temporary, &job.source, job.profile.format)?;
+        let output = publish(temporary, &job.source, &name)?;
         if let Some(item) = state.jobs.iter_mut().find(|item| item.id == job.id) {
             item.status = JobStatus::Completed(output.clone());
             item.progress = Some(1.0);
@@ -437,7 +460,7 @@ impl Tools {
             "-v",
             "error",
             "-show_entries",
-            "format=duration:stream=codec_type,nb_read_frames,avg_frame_rate",
+            "format=duration:stream=codec_type,nb_read_frames,avg_frame_rate,width,height",
             "-of",
             "json",
         ]);
@@ -489,6 +512,16 @@ struct ProbeStream {
     codec_type: Option<String>,
     nb_read_frames: Option<String>,
     avg_frame_rate: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+}
+
+impl ProbeStream {
+    fn dimensions(&self) -> Option<crate::naming::Dimensions> {
+        let width = self.width.filter(|value| *value > 0)?;
+        let height = self.height.filter(|value| *value > 0)?;
+        Some(crate::naming::Dimensions { width, height })
+    }
 }
 #[derive(Deserialize)]
 struct ProbeFormat {
@@ -672,16 +705,37 @@ fn add_encoding_args(
 fn publish(
     mut temporary: tempfile::NamedTempFile,
     source: &Path,
-    format: OutputFormat,
+    output_name: &std::ffi::OsStr,
 ) -> Result<PathBuf> {
-    let stem = source.file_stem().context("Missing source filename")?;
+    let output_path = Path::new(output_name);
+    let stem = output_path.file_stem().context("Missing output filename")?;
+    let extension = output_path
+        .extension()
+        .context("Missing output extension")?;
     let parent = source.parent().unwrap();
     for index in 0..10000 {
         let mut name = stem.to_os_string();
         if index > 0 {
-            name.push(format!(" ({index})"));
+            let suffix = format!(" ({index})");
+            let budget =
+                255 - suffix.len() - 1 - extension.to_string_lossy().encode_utf16().count();
+            if stem.to_string_lossy().encode_utf16().count() > budget {
+                let text = stem.to_string_lossy();
+                let mut units = 0;
+                name = text
+                    .chars()
+                    .take_while(|character| {
+                        units += character.len_utf16();
+                        units <= budget
+                    })
+                    .collect::<String>()
+                    .into();
+            }
+            name.push(suffix);
         }
-        name.push(format!(".{}", format.extension()));
+        name.push(".");
+        name.push(extension);
+        crate::naming::validate_filename(&name)?;
         let destination = parent.join(name);
         if destination == source || destination.exists() {
             continue;

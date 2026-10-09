@@ -1,4 +1,5 @@
 pub mod conversion;
+mod naming;
 pub mod profiles;
 
 use std::path::PathBuf;

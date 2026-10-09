@@ -106,6 +106,7 @@ impl SettingsView {
         self.inputs.clear();
         for (key, value) in [
             ("name", self.draft.name.clone()),
+            ("filename-template", self.draft.filename_template.clone()),
             ("quality", self.draft.quality.to_string()),
             ("compression", self.draft.png_compression.to_string()),
             (
@@ -271,6 +272,7 @@ impl SettingsView {
         };
         let mut profile = self.draft.clone();
         profile.name = value("name").trim().into();
+        profile.filename_template = value("filename-template");
         profile.max_width = optional("width")?;
         profile.max_height = optional("height")?;
         if profile.format.kind() == MediaKind::Image {
@@ -738,6 +740,11 @@ impl Render for SettingsView {
                 .child(div().text_sm().child(self.t("Output format")))
                 .child(formats);
         }
+        form = form
+            .child(self.field("Output filename template", "filename-template"))
+            .child(self.hint("Variables: {filename} (original name without extension), {ext} (output extension), {profile} (profile name).", cx))
+            .child(self.hint("Dimensions: {width} / {height} (converted file), {source_width} / {source_height} (original file).", cx))
+            .child(self.hint("Examples: {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. The output extension is added automatically if missing.", cx));
         form = form.child(
             div()
                 .flex()
