@@ -486,7 +486,7 @@ impl SettingsView {
                     general.auto_hide_completed = *checked;
                     view.save_general(general, window, cx);
                 })))
-            .child(self.hint("Hide after six seconds when all conversions succeed. Errors remain visible.", cx))
+            .child(self.hint("Hide immediately when all conversions finish. Errors remain visible.", cx))
             .child(self.section("About", cx))
             .child(div().text_sm().child(concat!("Mue v", env!("CARGO_PKG_VERSION"))))
             .child(div().text_sm().child(format!("FFmpeg {FFMPEG_VERSION} / ffprobe {FFMPEG_VERSION}")))

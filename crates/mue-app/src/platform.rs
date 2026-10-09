@@ -60,8 +60,9 @@ pub fn open_settings_folder() -> anyhow::Result<()> {
 #[cfg(windows)]
 pub use windows::Tray;
 
-pub const PROGRESS_WIDTH: f32 = 480.0;
-pub const PROGRESS_HEIGHT: f32 = 360.0;
+pub const PROGRESS_WIDTH: f32 = 380.0;
+pub const PROGRESS_HEIGHT: f32 = 128.0;
+pub const PROGRESS_MAX_HEIGHT: f32 = 420.0;
 
 #[cfg(not(windows))]
 pub struct Tray;
@@ -88,17 +89,25 @@ pub fn progress_bounds(cx: &App) -> Bounds<Pixels> {
     Bounds::new(
         point(
             display.right() - px(PROGRESS_WIDTH + 20.0),
-            display.bottom() - px(PROGRESS_HEIGHT + 40.0),
+            display.bottom()
+                - px(if cfg!(windows) {
+                    PROGRESS_HEIGHT
+                } else {
+                    PROGRESS_MAX_HEIGHT
+                } + 40.0),
         ),
         size(px(PROGRESS_WIDTH), px(PROGRESS_HEIGHT)),
     )
 }
 
-pub fn position_progress(window: &Window, cx: &App) {
+pub fn position_progress(window: &mut Window, height: f32, follow_cursor: bool, cx: &App) {
     #[cfg(windows)]
-    windows::position_progress(window, cx);
+    windows::position_progress(window, height, follow_cursor, cx);
     #[cfg(not(windows))]
-    let _ = (window, cx);
+    {
+        window.resize(size(px(PROGRESS_WIDTH), px(height)));
+        let _ = (follow_cursor, cx);
+    }
 }
 
 pub fn update_titlebar(window: &Window, cx: &App) {

@@ -1,6 +1,9 @@
 use crate::{preferences, ui::SharedSettings};
 use gpui::{Context, Render, SharedString, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme, button::Button};
+use gpui_component::{
+    ActiveTheme, Sizable,
+    button::{Button, ButtonVariants},
+};
 use mue_core::conversion::{Engine, JobStatus};
 use mue_core::profiles::InterfaceLanguage;
 
@@ -8,6 +11,15 @@ pub(crate) struct ProgressView {
     pub(crate) engine: Engine,
     pub(crate) settings: SharedSettings,
     pub(crate) language: Option<InterfaceLanguage>,
+    pub(crate) expanded: bool,
+    pub(crate) requested_height: f32,
+}
+
+impl ProgressView {
+    pub(crate) fn show_queue(&mut self, cx: &mut Context<Self>) {
+        self.expanded = true;
+        cx.notify();
+    }
 }
 
 impl Render for ProgressView {
@@ -25,9 +37,27 @@ impl Render for ProgressView {
             .iter()
             .filter(|job| matches!(job.status, JobStatus::Queued))
             .count();
+        let failed = state
+            .jobs
+            .iter()
+            .filter(|job| matches!(job.status, JobStatus::Failed(_)))
+            .count();
+        let height = if self.expanded {
+            (64.0 + state.jobs.len() as f32 * 148.0)
+                .clamp(150.0, crate::platform::PROGRESS_MAX_HEIGHT)
+        } else if failed > 0 {
+            210.0
+        } else {
+            crate::platform::PROGRESS_HEIGHT
+        };
+        if self.requested_height != height {
+            crate::platform::position_progress(window, height, false, cx);
+            self.requested_height = height;
+        }
         let mut content = div()
             .id("conversion-list")
             .flex_1()
+            .min_h(px(0.0))
             .overflow_y_scroll()
             .flex()
             .flex_col()
@@ -37,6 +67,22 @@ impl Render for ProgressView {
         }
         let mut jobs: Vec<_> = state.jobs.iter().collect();
         jobs.sort_by_key(|job| !job.status.active());
+        if !self.expanded {
+            let current = state
+                .jobs
+                .iter()
+                .find(|job| matches!(job.status, JobStatus::Running))
+                .or_else(|| state.jobs.iter().find(|job| job.status.active()))
+                .or_else(|| {
+                    state
+                        .jobs
+                        .iter()
+                        .rev()
+                        .find(|job| matches!(job.status, JobStatus::Failed(_)))
+                })
+                .or_else(|| state.jobs.back());
+            jobs = current.into_iter().collect();
+        }
         for job in jobs {
             let filename = job
                 .source
@@ -44,7 +90,7 @@ impl Render for ProgressView {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .into_owned();
-            let status = match &job.status {
+            let mut status = match &job.status {
                 JobStatus::Queued => t("Waiting").into(),
                 JobStatus::Running => job.progress.map_or(t("Converting…").into(), |p| {
                     format!(
@@ -58,22 +104,27 @@ impl Render for ProgressView {
                 JobStatus::Failed(error) => format!("{}: {error}", t("Failed")),
                 JobStatus::Cancelled => t("Cancelled").into(),
             };
+            if !self.expanded && waiting > 0 {
+                status.push_str(&format!(" · {waiting} {}", t("Waiting")));
+            }
             let id = job.id;
             let mut row = div()
                 .flex()
                 .flex_col()
                 .gap_1()
-                .p_2()
+                .when(self.expanded, |row| row.p_2())
                 .rounded_md()
-                .bg(cx.theme().secondary)
-                .child(div().text_sm().child(filename))
-                .child(
-                    div()
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(job.profile.name.clone()),
-                )
-                .child(div().text_xs().child(status));
+                .when(self.expanded, |row| row.bg(cx.theme().secondary))
+                .child(div().text_sm().truncate().child(filename))
+                .when(self.expanded, |row| {
+                    row.child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(job.profile.name.clone()),
+                    )
+                })
+                .child(div().text_xs().whitespace_normal().child(status));
             if matches!(job.status, JobStatus::Running) {
                 row = row.child(
                     div()
@@ -89,7 +140,7 @@ impl Render for ProgressView {
                         ),
                 );
             }
-            if job.status.active() {
+            if self.expanded && job.status.active() {
                 row = row.child(
                     Button::new(SharedString::from(format!("cancel-{id}")))
                         .label(t("Cancel"))
@@ -98,7 +149,9 @@ impl Render for ProgressView {
                             cx.notify();
                         })),
                 );
-            } else if let JobStatus::Completed(output) = &job.status {
+            } else if self.expanded
+                && let JobStatus::Completed(output) = &job.status
+            {
                 let output = output.clone();
                 row = row.child(
                     Button::new(SharedString::from(format!("reveal-{id}")))
@@ -121,17 +174,42 @@ impl Render for ProgressView {
                     .flex()
                     .justify_between()
                     .items_center()
+                    .child(div().text_sm().child("Mue"))
                     .child(
                         div()
-                            .text_lg()
-                            .child(format!("Mue · {waiting} {}", t("Waiting"))),
-                    )
-                    .child(
-                        Button::new("dismiss")
-                            .label(t("Hide"))
-                            .on_click(|_, window, _| window.remove_window()),
+                            .flex()
+                            .gap_1()
+                            .child(
+                                Button::new("toggle-queue")
+                                    .ghost()
+                                    .small()
+                                    .label(t(if self.expanded {
+                                        "Hide queue"
+                                    } else {
+                                        "Show queue"
+                                    }))
+                                    .on_click(cx.listener(|view, _, _, cx| {
+                                        view.expanded = !view.expanded;
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("dismiss")
+                                    .ghost()
+                                    .small()
+                                    .label(t("Hide"))
+                                    .on_click(|_, window, _| window.remove_window()),
+                            ),
                     ),
             )
+            .when(!self.expanded && failed > 0, |view| {
+                view.child(
+                    div()
+                        .text_xs()
+                        .text_color(cx.theme().danger)
+                        .child(format!("{failed} · {}", t("Failed"))),
+                )
+            })
             .child(content)
     }
 }

@@ -1,4 +1,4 @@
-use super::{PROGRESS_HEIGHT, PROGRESS_WIDTH};
+use super::PROGRESS_WIDTH;
 use anyhow::Result;
 use gpui::{App, Window};
 use mue_core::Request;
@@ -85,10 +85,13 @@ impl Tray {
     }
 }
 
-pub fn position_progress(window: &Window, cx: &App) {
+pub fn position_progress(window: &Window, height: f32, follow_cursor: bool, cx: &App) {
     use windows::Win32::{
         Foundation::{HWND, POINT},
-        Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint},
+        Graphics::Gdi::{
+            GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint,
+            MonitorFromWindow,
+        },
         UI::{
             HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
             WindowsAndMessaging::{
@@ -110,7 +113,11 @@ pub fn position_progress(window: &Window, cx: &App) {
             unsafe {
                 let mut cursor = POINT::default();
                 let _ = GetCursorPos(&mut cursor);
-                let monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+                let monitor = if follow_cursor {
+                    MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST)
+                } else {
+                    MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+                };
                 let mut info = MONITORINFO {
                     cbSize: std::mem::size_of::<MONITORINFO>() as u32,
                     ..Default::default()
@@ -123,7 +130,7 @@ pub fn position_progress(window: &Window, cx: &App) {
                 let _ = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y);
                 let scale = dpi_x as f32 / 96.0;
                 let width = (PROGRESS_WIDTH * scale) as i32;
-                let height = (PROGRESS_HEIGHT * scale) as i32;
+                let height = (height * scale) as i32;
                 let margin = (16.0 * scale) as i32;
                 let _ = SetWindowPos(
                     hwnd,

@@ -88,9 +88,11 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         "Automatically hide completed conversions" => {
             "Masquer automatiquement les conversions terminées"
         }
-        "Hide after six seconds when all conversions succeed. Errors remain visible." => {
-            "Masquer après six secondes si toutes les conversions réussissent. Les erreurs restent visibles."
+        "Hide immediately when all conversions finish. Errors remain visible." => {
+            "Masquer dès la fin des conversions. Les erreurs restent visibles."
         }
+        "Show queue" => "Afficher la file",
+        "Hide queue" => "Réduire la file",
         "About" => "À propos",
         "Originals are preserved. Outputs are saved next to the source without overwriting files." => {
             "Les originaux sont conservés. Les résultats sont enregistrés à côté de la source sans écraser de fichiers."

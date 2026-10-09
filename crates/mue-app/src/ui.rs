@@ -13,7 +13,7 @@ use mue_core::{
 use std::{
     fs::File,
     sync::{Arc, Mutex, mpsc},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 pub(crate) type SharedSettings = Arc<Mutex<Settings>>;
@@ -69,7 +69,8 @@ pub fn run(settings: SharedSettings, receiver: mpsc::Receiver<Incoming>, lock: F
                 _lock: lock,
                 settings_window: None,
                 progress_window: None,
-                idle_since: None,
+                was_busy: false,
+                history_requested: false,
                 last_job: None,
                 ui_requests: Arc::new(Mutex::new(Vec::new())),
             };
@@ -107,7 +108,8 @@ struct Runtime {
     _lock: File,
     settings_window: Option<WindowHandle<Root>>,
     progress_window: Option<(WindowHandle<Root>, Entity<ProgressView>)>,
-    idle_since: Option<Instant>,
+    was_busy: bool,
+    history_requested: bool,
     last_job: Option<uuid::Uuid>,
     ui_requests: Arc<Mutex<Vec<Request>>>,
 }
@@ -121,7 +123,10 @@ impl Runtime {
                 Ok(())
             }
             Request::Settings => self.open_settings(cx),
-            Request::Progress => self.open_progress(cx),
+            Request::Progress => {
+                self.history_requested = true;
+                self.open_progress(true, cx)
+            }
             Request::Quit => {
                 self.engine.stop();
                 cx.quit();
@@ -130,8 +135,7 @@ impl Runtime {
             Request::Convert { choice, files } => {
                 let profile = self.settings.lock().unwrap().resolve(&choice)?;
                 self.engine.enqueue(files, profile)?;
-                self.idle_since = None;
-                self.open_progress(cx)
+                self.open_progress(false, cx)
             }
         }
     }
@@ -172,14 +176,11 @@ impl Runtime {
                 state.jobs.back().map(|job| job.id),
             )
         };
-        if last_job.is_some() && last_job != self.last_job {
-            let _ = self.open_progress(cx);
-            self.idle_since = None;
+        let new_job = last_job.is_some() && last_job != self.last_job;
+        if new_job {
+            let _ = self.open_progress(false, cx);
         }
         self.last_job = last_job;
-        if busy {
-            self.idle_since = None;
-        }
         if let Some((handle, view)) = &self.progress_window {
             let view = view.clone();
             if handle
@@ -187,17 +188,18 @@ impl Runtime {
                 .is_err()
             {
                 self.progress_window = None;
-            } else if !busy && !failed && self.settings.lock().unwrap().general.auto_hide_completed
+            } else if !busy
+                && !failed
+                && !self.history_requested
+                && (self.was_busy || new_job)
+                && self.settings.lock().unwrap().general.auto_hide_completed
             {
-                let since = self.idle_since.get_or_insert_with(Instant::now);
-                if since.elapsed() > Duration::from_secs(6) {
-                    let _ = handle.update(cx, |_, window, _| window.remove_window());
-                    self.progress_window = None;
-                }
-            } else {
-                self.idle_since = None;
+                let _ = handle.update(cx, |_, window, _| window.remove_window());
+                self.progress_window = None;
             }
         }
+        self.was_busy = busy;
+        self.history_requested = false;
     }
 
     fn open_settings(&mut self, cx: &mut App) -> Result<()> {
@@ -232,10 +234,15 @@ impl Runtime {
         Ok(())
     }
 
-    fn open_progress(&mut self, cx: &mut App) -> Result<()> {
-        if let Some((handle, _)) = &self.progress_window {
+    fn open_progress(&mut self, expanded: bool, cx: &mut App) -> Result<()> {
+        if let Some((handle, view)) = &self.progress_window {
             if handle
-                .update(cx, |_, window, cx| platform::position_progress(window, cx))
+                .update(cx, |_, window, cx| {
+                    if expanded {
+                        view.update(cx, |view, cx| view.show_queue(cx));
+                    }
+                    platform::position_progress(window, view.read(cx).requested_height, true, cx);
+                })
                 .is_ok()
             {
                 return Ok(());
@@ -252,6 +259,7 @@ impl Runtime {
                 is_resizable: false,
                 is_minimizable: false,
                 kind: WindowKind::PopUp,
+                titlebar: None,
                 ..Default::default()
             },
             |window, cx| {
@@ -264,14 +272,17 @@ impl Runtime {
                     engine,
                     settings,
                     language: None,
+                    expanded,
+                    requested_height: platform::PROGRESS_HEIGHT,
                 });
                 progress_view = Some(view.clone());
                 cx.new(|cx| Root::new(view, window, cx))
             },
         )?;
-        handle.update(cx, |_, window, cx| platform::position_progress(window, cx))?;
+        handle.update(cx, |_, window, cx| {
+            platform::position_progress(window, platform::PROGRESS_HEIGHT, true, cx)
+        })?;
         self.progress_window = Some((handle, progress_view.unwrap()));
-        self.idle_since = None;
         Ok(())
     }
 }
