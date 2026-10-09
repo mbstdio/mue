@@ -8,6 +8,9 @@ Image and video conversion from the Windows 11 context menu, built with Rust, GP
 - A final **Profiles** submenu containing saved image or video conversion profiles.
 - GPUI settings for image quality, PNG compression, maximum dimensions, JPEG transparency
   background, video quality and encoding speed, frame rate limit, audio, and metadata.
+- Categorized settings with General, Image, and Video navigation and the application version.
+- System/light/dark appearance, English/French interface languages, optional Windows sign-in
+  startup, and configurable automatic hiding of completed conversions.
 - One application instance, a Windows tray icon, and a sequential conversion queue.
 - A compact, non-focusing progress window on the cursor's monitor, above the taskbar.
 - Cancellation, estimated video time remaining, and revealing the output in File Explorer.
@@ -118,6 +121,28 @@ have their own Apache-2.0 licenses. Application licensing and production signing
 
 ## Settings and supported media
 
+The settings window uses a compact category sidebar, with the application version pinned at
+the bottom. **General** contains appearance, language, startup, conversion-window behavior,
+and application/engine information. **Image** and **Video** each contain their direct conversion
+defaults and saved profiles. Save, duplicate, delete, and conversion actions remain visible while
+the profile editor scrolls.
+
+General preferences are saved immediately. The theme defaults to **System** and follows desktop
+appearance changes; **Light** and **Dark** apply to both settings and conversion windows. The
+interface defaults to **English**, with **French** and **System** also available. Profile names
+are user content and are not translated. On Windows, **Launch at sign-in** registers the current
+executable with `--background` in the current user's Run key. Disable the option before moving
+or removing that executable; re-enable it from the new installation to update its path.
+
+**Automatically hide completed conversions** defaults to enabled: the conversion window hides
+after six seconds once the queue is idle and no jobs have failed. Disable it to retain the window
+until **Hide** is clicked. **Show conversions** reopens the current history without starting a job.
+
+Profile edits remain drafts until **Save changes**. Switching categories or profiles preserves
+drafts, including incomplete input, for the lifetime of the settings window. Creating, duplicating,
+and deleting a profile update the saved profile list immediately. Existing settings files without
+general preferences load with the defaults above and preserve their conversion settings.
+
 User settings are stored in the platform's local data directory under `Mue/profiles.json`
 (`%LOCALAPPDATA%\Mue\profiles.json` on Windows). The file is validated and replaced atomically;
 an invalid file is reported instead of silently being overwritten.
@@ -138,12 +163,34 @@ WMV, TS/MTS/M2TS. Decoding also depends on the bundled FFmpeg's capabilities.
   extension, a new name is selected without overwriting. Completed history is limited to 20 jobs
   for the current session. Temporary filenames start with `.mue-`.
 
+### Manual settings validation
+
+After rebuilding and relaunching Mue:
+
+1. Open each category, resize to the minimum window size, and check scrolling, navigation icons,
+   the pinned application version, and the profile action footer.
+2. Switch between Light, Dark, and System with settings and conversions open. Change the Windows
+   appearance while System is selected and verify both windows and their title bars follow it.
+3. Switch English/French/System and verify the settings labels, conversion controls, and tray menu.
+   Quit and reopen Mue to verify preference persistence.
+4. Enable Launch at sign-in, then sign out and back in. Mue should start in the tray without opening
+   settings. Disable the option and check that the next sign-in no longer launches Mue.
+5. Edit an image profile without saving, switch to Video and back, and verify the draft is retained.
+   Repeat with an incomplete numeric input. Save valid edits, create/duplicate/delete profiles,
+   and reopen the Explorer menu to verify the saved lists and conversions.
+6. Convert image and video files from settings. Verify the originals remain intact and the results
+   use the edited settings. Check automatic hiding with the option enabled and disabled.
+7. Check Open settings folder, Show conversions, and Quit Mue from General.
+
 ## Cross-platform structure
 
 ```text
 crates/mue-core     Platform-independent profiles, requests, queue, and FFmpeg subprocess engine
 crates/mue-app      Shared GPUI settings and progress UI
   src/ipc.rs       Windows named pipes / Unix-domain sockets and a per-user instance lock
+  src/settings.rs  Categorized settings and profile editing
+  src/preferences.rs Theme application and interface translations
+  src/progress.rs  Conversion history and progress UI
   src/platform/    Native desktop integration (Windows implementation)
 crates/mue-shell    Windows-only IExplorerCommand COM extension
 packaging/         Pinned engine distribution and Windows application identities

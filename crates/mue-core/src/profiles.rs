@@ -173,6 +173,8 @@ impl Profile {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub schema_version: u32,
+    #[serde(default)]
+    pub general: GeneralSettings,
     pub defaults: Vec<Profile>,
     pub profiles: Vec<Profile>,
 }
@@ -181,8 +183,47 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             schema_version: 1,
+            general: GeneralSettings::default(),
             defaults: OutputFormat::ALL.into_iter().map(Profile::new).collect(),
             profiles: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemePreference {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InterfaceLanguage {
+    System,
+    #[default]
+    English,
+    French,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GeneralSettings {
+    pub theme: ThemePreference,
+    pub language: InterfaceLanguage,
+    pub launch_at_startup: bool,
+    pub auto_hide_completed: bool,
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self {
+            theme: ThemePreference::System,
+            language: InterfaceLanguage::English,
+            launch_at_startup: false,
+            auto_hide_completed: true,
         }
     }
 }

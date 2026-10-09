@@ -2,6 +2,7 @@ use super::{PROGRESS_HEIGHT, PROGRESS_WIDTH};
 use anyhow::Result;
 use gpui::{App, Window};
 use mue_core::Request;
+use mue_core::profiles::InterfaceLanguage;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
@@ -13,6 +14,7 @@ pub struct Tray {
     settings: MenuItem,
     progress: MenuItem,
     quit: MenuItem,
+    language: Option<InterfaceLanguage>,
 }
 
 impl Tray {
@@ -48,6 +50,7 @@ impl Tray {
             settings,
             progress,
             quit,
+            language: None,
         })
     }
 
@@ -66,6 +69,19 @@ impl Tray {
                 }
             })
             .collect()
+    }
+
+    pub fn set_language(&mut self, language: InterfaceLanguage) {
+        if self.language == Some(language) {
+            return;
+        }
+        self.settings
+            .set_text(crate::preferences::text(language, "Settings"));
+        self.progress
+            .set_text(crate::preferences::text(language, "Conversions"));
+        self.quit
+            .set_text(crate::preferences::text(language, "Quit Mue"));
+        self.language = Some(language);
     }
 }
 
@@ -135,6 +151,29 @@ pub fn show_error(message: &str) {
             &HSTRING::from(message),
             &HSTRING::from("Mue"),
             MB_OK | MB_ICONERROR,
+        );
+    }
+}
+
+pub fn update_titlebar(window: &Window, cx: &App) {
+    use gpui_component::ActiveTheme;
+    use windows::Win32::{
+        Foundation::HWND,
+        Graphics::Dwm::{DWMWA_USE_IMMERSIVE_DARK_MODE, DwmSetWindowAttribute},
+    };
+    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+        return;
+    };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else {
+        return;
+    };
+    let dark = i32::from(cx.theme().mode.is_dark());
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            HWND(handle.hwnd.get() as _),
+            DWMWA_USE_IMMERSIVE_DARK_MODE,
+            &dark as *const _ as _,
+            std::mem::size_of_val(&dark) as u32,
         );
     }
 }

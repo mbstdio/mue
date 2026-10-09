@@ -1,7 +1,11 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
+mod assets;
 mod ipc;
 mod platform;
+mod preferences;
+mod progress;
+mod settings;
 mod ui;
 
 use anyhow::{Context, Result, bail, ensure};
