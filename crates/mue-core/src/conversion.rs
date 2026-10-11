@@ -75,13 +75,23 @@ impl Engine {
     }
 
     pub fn enqueue(&self, files: Vec<PathBuf>, profile: Profile) -> Result<()> {
-        profile.validate()?;
+        self.enqueue_batch(
+            files
+                .into_iter()
+                .map(|file| (file, profile.clone()))
+                .collect(),
+        )
+    }
+
+    /// Validate the entire batch before inserting jobs, preserving the supplied order.
+    pub fn enqueue_batch(&self, files: Vec<(PathBuf, Profile)>) -> Result<()> {
         ensure!(
             !files.is_empty() && files.len() <= 1000,
             "Select between 1 and 1000 files"
         );
         let mut validated = Vec::new();
-        for file in files {
+        for (file, profile) in files {
+            profile.validate()?;
             ensure!(
                 file.is_absolute() && file.is_file(),
                 "Not a local file: {}",
@@ -93,18 +103,22 @@ impl Engine {
                 file.display(),
                 profile.format.label()
             );
-            validated.push(file);
+            validated.push((file, profile));
         }
         let mut state = self.state.lock().unwrap();
         ensure!(
             state.jobs.iter().filter(|j| j.status.active()).count() + validated.len() <= 1000,
             "The queue is full (1000 files maximum)"
         );
-        for source in validated {
+        ensure!(
+            !self.shutdown.load(Ordering::Relaxed),
+            "Conversion worker is stopping"
+        );
+        for (source, profile) in validated {
             state.jobs.push_back(Job {
                 id: Uuid::new_v4(),
                 source,
-                profile: profile.clone(),
+                profile,
                 status: JobStatus::Queued,
                 progress: None,
                 remaining_seconds: None,

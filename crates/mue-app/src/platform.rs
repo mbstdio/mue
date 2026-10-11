@@ -57,6 +57,22 @@ pub fn open_settings_folder() -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn reveal_path(path: &std::path::Path, cx: &App) {
+    #[cfg(windows)]
+    {
+        let path = path.to_path_buf();
+        cx.background_executor()
+            .spawn(async move {
+                if let Err(error) = windows::reveal_file(&path) {
+                    show_error(&format!("Cannot show file in Explorer: {error:#}"));
+                }
+            })
+            .detach();
+    }
+    #[cfg(not(windows))]
+    cx.reveal_path(path);
+}
+
 #[cfg(windows)]
 pub use windows::Tray;
 

@@ -533,7 +533,7 @@ impl SettingsView {
                         }
                     })))
                 .child(Button::new("show-conversions").label(self.t("Show conversions"))
-                    .on_click(cx.listener(|view, _, _, _| view.ui_requests.lock().unwrap().push(Request::Progress))))
+                    .on_click(cx.listener(|view, _, _, _| view.ui_requests.lock().unwrap().push(Request::Conversions))))
                 .child(Button::new("quit").label(self.t("Quit Mue"))
                     .on_click(cx.listener(|view, _, _, cx| { view.engine.stop(); cx.quit(); }))))
     }

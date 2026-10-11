@@ -107,6 +107,32 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
             "Mue démarre dans la zone de notification et reste actif à la fermeture des paramètres."
         }
         "Conversions" => "Conversions",
+        "Convert files" => "Convertir des fichiers",
+        "Conversion progress" => "Suivi des conversions",
+        "Add files…" => "Ajouter des fichiers…",
+        "Drop files here" => "Déposez vos fichiers ici",
+        "Images, videos and audio · or use the + button" => {
+            "Images, vidéos et audio · ou utilisez le bouton +"
+        }
+        "Choose a profile" => "Choisir un profil",
+        "Choose a profile before converting" => "Choisissez un profil avant de convertir",
+        "Profile no longer available" => "Profil indisponible : choisissez-en un autre",
+        "Apply a profile…" => "Appliquer un profil…",
+        "Apply a profile to selected files" => "Appliquer un profil aux fichiers sélectionnés",
+        "Select files of the same type to apply a profile." => {
+            "Sélectionnez des fichiers du même type pour appliquer un profil."
+        }
+        "Select all" => "Tout sélectionner",
+        "Select file" => "Sélectionner le fichier",
+        "Selected" => "sélectionné(s)",
+        "Prepared" => "en préparation",
+        "Ready" => "Prêt(s)",
+        "Convert this file" => "Convertir ce fichier",
+        "Convert ready files" => "Convertir les fichiers prêts",
+        "Remove file" => "Retirer le fichier",
+        "Remove selected files" => "Retirer les fichiers sélectionnés",
+        "Unsupported or unavailable file" => "Fichier non pris en charge ou inaccessible",
+        "The queue is full (1000 files maximum)" => "La file est pleine (1 000 fichiers maximum)",
         "Automatically hide completed conversions" => {
             "Masquer automatiquement les conversions terminées"
         }

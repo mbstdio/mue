@@ -1,4 +1,7 @@
-use crate::{ipc::Incoming, platform, preferences, progress::ProgressView, settings::SettingsView};
+use crate::{
+    conversions::ConversionsView, ipc::Incoming, platform, preferences, progress::ProgressView,
+    settings::SettingsView,
+};
 use anyhow::Result;
 use gpui::{
     App, Application, Bounds, Context, Entity, Render, Window, WindowBounds, WindowHandle,
@@ -68,6 +71,8 @@ pub fn run(settings: SharedSettings, receiver: mpsc::Receiver<Incoming>, lock: F
                 tray,
                 _lock: lock,
                 settings_window: None,
+                conversions_window: None,
+                conversions_view: None,
                 progress_window: None,
                 was_busy: false,
                 history_requested: false,
@@ -107,6 +112,9 @@ struct Runtime {
     tray: platform::Tray,
     _lock: File,
     settings_window: Option<WindowHandle<Root>>,
+    conversions_window: Option<WindowHandle<Root>>,
+    // Retain preparation entries when the window closes, for this application session.
+    conversions_view: Option<Entity<ConversionsView>>,
     progress_window: Option<(WindowHandle<Root>, Entity<ProgressView>)>,
     was_busy: bool,
     history_requested: bool,
@@ -119,10 +127,11 @@ impl Runtime {
         match request {
             Request::Background => {
                 #[cfg(not(windows))]
-                self.open_settings(cx)?;
+                self.open_conversions(cx)?;
                 Ok(())
             }
             Request::Settings => self.open_settings(cx),
+            Request::Conversions => self.open_conversions(cx),
             Request::Progress => {
                 self.history_requested = true;
                 self.open_progress(true, cx)
@@ -141,6 +150,18 @@ impl Runtime {
     }
 
     fn poll(&mut self, cx: &mut App) {
+        let mut conversions_closed = false;
+        if let Some(handle) = self.conversions_window {
+            let view = self.conversions_view.as_ref().unwrap().clone();
+            if handle
+                .update(cx, |_, _, cx| view.update(cx, |_, cx| cx.notify()))
+                .is_err()
+            {
+                self.conversions_window = None;
+                view.update(cx, |view, _| view.close_profile_menu());
+                conversions_closed = true;
+            }
+        }
         self.tray
             .set_language(self.settings.lock().unwrap().general.language);
         let requests = std::mem::take(&mut *self.ui_requests.lock().unwrap());
@@ -177,7 +198,7 @@ impl Runtime {
             )
         };
         let new_job = last_job.is_some() && last_job != self.last_job;
-        if new_job {
+        if new_job || (conversions_closed && (busy || failed)) {
             let _ = self.open_progress(false, cx);
         }
         self.last_job = last_job;
@@ -234,7 +255,58 @@ impl Runtime {
         Ok(())
     }
 
+    fn open_conversions(&mut self, cx: &mut App) -> Result<()> {
+        if let Some(handle) = self.conversions_window {
+            if handle
+                .update(cx, |_, window, _| window.activate_window())
+                .is_ok()
+            {
+                return Ok(());
+            }
+        }
+        let view = self
+            .conversions_view
+            .get_or_insert_with(|| {
+                cx.new(|_| {
+                    ConversionsView::new(
+                        self.settings.clone(),
+                        self.engine.clone(),
+                        self.ui_requests.clone(),
+                    )
+                })
+            })
+            .clone();
+        let language = self.settings.lock().unwrap().general.language;
+        view.update(cx, |view, _| view.close_profile_menu());
+        self.conversions_window = Some(cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+                    None,
+                    size(px(1040.0), px(720.0)),
+                    cx,
+                ))),
+                window_min_size: Some(size(px(780.0), px(480.0))),
+                ..Default::default()
+            },
+            |window, cx| {
+                window.set_window_title(&format!(
+                    "Mue — {}",
+                    preferences::text(language, "Conversions")
+                ));
+                preferences::configure_window(window, cx);
+                cx.new(|cx| Root::new(view, window, cx))
+            },
+        )?);
+        if let Some((handle, _)) = self.progress_window.take() {
+            let _ = handle.update(cx, |_, window, _| window.remove_window());
+        }
+        Ok(())
+    }
+
     fn open_progress(&mut self, expanded: bool, cx: &mut App) -> Result<()> {
+        if !expanded && self.conversions_window.is_some() {
+            return Ok(());
+        }
         if let Some((handle, view)) = &self.progress_window {
             if handle
                 .update(cx, |_, window, cx| {

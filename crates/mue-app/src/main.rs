@@ -2,6 +2,7 @@
 
 mod assets;
 mod components;
+mod conversions;
 mod ipc;
 mod platform;
 mod preferences;
@@ -34,11 +35,12 @@ fn run() -> Result<()> {
 fn parse_request() -> Result<Request> {
     let mut args = std::env::args_os().skip(1);
     let Some(command) = args.next() else {
-        return Ok(Request::Settings);
+        return Ok(Request::Conversions);
     };
     let request = match command.to_str().context("Invalid command")? {
         "--background" => Request::Background,
         "--progress" => Request::Progress,
+        "--conversions" => Request::Conversions,
         "--settings" => Request::Settings,
         "--quit" => Request::Quit,
         "--request-file" => {
@@ -71,7 +73,7 @@ fn parse_request() -> Result<Request> {
             }
         }
         _ => bail!(
-            "Usage: mue [--settings | --progress | --background | --quit | --convert <format> <files...>]"
+            "Usage: mue [--conversions | --settings | --progress | --background | --quit | --convert <format> <files...>]"
         ),
     };
     ensure!(args.next().is_none(), "Unexpected command-line arguments");

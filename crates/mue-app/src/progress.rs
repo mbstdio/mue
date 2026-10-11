@@ -4,8 +4,26 @@ use gpui_component::{
     ActiveTheme, Disableable, Icon, Sizable,
     button::{Button, ButtonCustomVariant, ButtonVariants},
 };
-use mue_core::conversion::{Engine, JobStatus};
+use mue_core::conversion::{Engine, Job, JobStatus};
 use mue_core::profiles::InterfaceLanguage;
+
+pub(crate) fn job_status(job: &Job, language: InterfaceLanguage) -> String {
+    let t = |text| preferences::text(language, text);
+    match &job.status {
+        JobStatus::Queued => t("Waiting").into(),
+        JobStatus::Running => job.progress.map_or(t("Converting…").into(), |p| {
+            format!(
+                "{:.0}%{}",
+                p * 100.0,
+                job.remaining_seconds
+                    .map_or(String::new(), |s| format!(" · ~{s}s"))
+            )
+        }),
+        JobStatus::Completed(_) => t("Completed").into(),
+        JobStatus::Failed(error) => format!("{}: {error}", t("Failed")),
+        JobStatus::Cancelled => t("Cancelled").into(),
+    }
+}
 
 pub(crate) struct ProgressView {
     pub(crate) engine: Engine,
@@ -108,20 +126,7 @@ impl Render for ProgressView {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .into_owned();
-            let mut status = match &job.status {
-                JobStatus::Queued => t("Waiting").into(),
-                JobStatus::Running => job.progress.map_or(t("Converting…").into(), |p| {
-                    format!(
-                        "{:.0}%{}",
-                        p * 100.0,
-                        job.remaining_seconds
-                            .map_or(String::new(), |s| format!(" · ~{s}s"))
-                    )
-                }),
-                JobStatus::Completed(_) => t("Completed").into(),
-                JobStatus::Failed(error) => format!("{}: {error}", t("Failed")),
-                JobStatus::Cancelled => t("Cancelled").into(),
-            };
+            let mut status = job_status(job, language);
             if !self.expanded && waiting > 0 {
                 status.push_str(&format!(" · {waiting} {}", t("Waiting")));
             }
@@ -182,7 +187,7 @@ impl Render for ProgressView {
                         .small()
                         .icon(Icon::default().path("icons/folder-open.svg"))
                         .tooltip(t("Show file"))
-                        .on_click(move |_, _, cx| cx.reveal_path(&output)),
+                        .on_click(move |_, _, cx| crate::platform::reveal_path(&output, cx)),
                 );
             }
             content = content.child(row);

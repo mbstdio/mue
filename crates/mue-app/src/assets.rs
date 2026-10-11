@@ -5,6 +5,16 @@ use std::borrow::Cow;
 pub struct Assets;
 
 const ICONS: &[(&str, &str)] = &[
+    ("icons/plus.svg", "<path d='M12 5v14M5 12h14'/>"),
+    ("icons/play.svg", "<path d='m8 4 12 8-12 8Z'/>"),
+    (
+        "icons/list-play.svg",
+        "<path d='M3 5h14M3 12h7M3 19h7m4-10 7 5-7 5Z'/>",
+    ),
+    (
+        "icons/upload.svg",
+        "<path d='M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5'/>",
+    ),
     (
         "icons/settings.svg",
         "<path d='M4 7h16M4 17h16'/><circle cx='9' cy='7' r='3' fill='white'/><circle cx='15' cy='17' r='3' fill='white'/>",

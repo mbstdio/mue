@@ -16,6 +16,9 @@ Image, video, and audio conversion from the Windows 11 context menu, built with 
 - System/light/dark appearance, English/French interface languages, optional Windows sign-in
   startup, and configurable automatic hiding of completed conversions.
 - One application instance, a Windows tray icon, and a sequential conversion queue.
+- A main conversion window with file drag-and-drop, a multi-file picker, compatible format/profile
+  selection per file or for multiple selected files, and individual or ordered batch conversion.
+  Icon actions include adding/removing files, starting conversions, clearing history, and settings.
 - A compact, non-focusing progress popup on the cursor's monitor, above the taskbar, with an expandable conversion queue. When automatic hiding is enabled, it closes as soon as the queue finishes; errors remain visible. Open Conversions from the tray to view the history.
 - Cancellation, estimated video/audio time remaining, and revealing the output in File Explorer.
 - Progress popup actions use icons with tooltips. Clear finished conversions removes completed,
@@ -46,7 +49,8 @@ cargo build --workspace --locked
 .\target\debug\mue.exe
 ```
 
-This opens settings and creates the tray icon. Closing settings leaves Mue in the tray.
+This opens the main conversions window and creates the tray icon. Closing the window leaves
+Mue in the tray and retains prepared files and profile selections for the application session.
 Use the tray's **Quit Mue** command to stop the application and its conversions.
 
 The standalone application can convert files through **Convert files…**, without registering
@@ -57,6 +61,7 @@ Command-line entry points:
 
 ```powershell
 .\target\debug\mue.exe --background
+.\target\debug\mue.exe --conversions
 .\target\debug\mue.exe --settings
 .\target\debug\mue.exe --progress
 .\target\debug\mue.exe --convert jpg "C:\Pictures\photo.png"
@@ -70,6 +75,54 @@ Command-line entry points:
 
 Subsequent launches forward their request to the existing instance. Conversion settings are
 snapshotted when a job is queued; editing a profile does not change jobs already in the queue.
+
+### Main conversions window
+
+A normal launch or **Convert files** in the tray opens the main window. **Settings** opens the
+profile editor, and **Conversion progress** opens the compact queue popup. Windows sign-in
+startup continues to use `--background`, leaving the application in the tray.
+
+Drop supported local files anywhere in the main window or use the **+** button. Images, videos,
+and audio can share the list. Direct format settings and saved profiles are offered only for
+compatible files; no profile is selected automatically. Select several prepared files of the
+same media type to apply a profile together. Mixed-type selections can be removed together,
+but must be split by type to assign profiles. Adding the same prepared file again is ignored;
+directories and unsupported or unavailable files are reported. Preparation and active jobs
+are limited to 1,000 entries together when adding files; the engine also validates its active
+queue limit before starting a batch.
+
+The row's play button starts that file. The toolbar's queue play button starts every prepared
+file with an available profile, in list order, leaving files without a profile in preparation.
+All files in a batch are validated before insertion. Profile settings are snapshotted at launch;
+deleting a selected profile requires choosing another before conversion. Removing prepared files
+and clearing finished history never deletes source or output files. Running/waiting jobs can be
+cancelled, and successful outputs can be revealed in File Explorer.
+
+The window also displays jobs launched through settings, Explorer, or the command line, with
+progress, estimated time remaining, and errors. As in the compact popup, finished history is
+limited to the latest 20 jobs. The compact popup does not automatically open over the main
+window; closing the main window during a conversion restores the popup. Prepared files remain
+available after reopening the window, but are not saved across a full application restart.
+
+#### Manual conversion-window validation
+
+1. Launch normally, open settings with the icon, close/reopen the conversion window from the tray,
+   and verify the separate compact progress action and single-instance `--conversions` entry point.
+2. Drop images, videos, and audio, then add more using **+**. Check paths with spaces/accents,
+   duplicate preparation entries, directories, unsupported files, and missing local files.
+3. Verify files initially have no profile and cannot be launched individually. Choose standard
+   formats and saved profiles, checking that only compatible choices appear.
+4. Select multiple files of one media type and apply a profile; select mixed types and check the
+   explanation and disabled bulk selector. Remove individual/selected files and verify originals.
+5. Launch one file, then the ready-file batch. Verify sequential processing, progress, cancellation,
+   output reveal, and that unconfigured files stay in preparation. Remove a source before launch
+   and verify batch validation does not partially enqueue the remaining files.
+6. Edit/save and delete profiles in settings with prepared files present. Verify new settings are
+   used at launch, deleted profiles require replacement, and already queued jobs retain settings.
+7. Close/reopen during conversion and while idle, verify preparation retention and popup behavior,
+   then quit/restart and verify preparation resets. Check jobs launched from settings and Explorer.
+8. Resize to the minimum window size, check scrolling/tooltips/keyboard controls, and switch theme
+   and English/French. Verify finished-history cleanup and that outputs remain on disk.
 
 ## Install the Windows 11 context menu locally
 
@@ -294,7 +347,8 @@ After rebuilding and relaunching Mue:
 
 ```text
 crates/mue-core     Platform-independent profiles, requests, queue, and FFmpeg subprocess engine
-crates/mue-app      Shared GPUI settings and progress UI
+crates/mue-app      Shared GPUI conversion, settings, and progress UI
+  src/conversions.rs Main conversion preparation, profile selection, and queue UI
   src/ipc.rs       Windows named pipes / Unix-domain sockets and a per-user instance lock
   src/settings.rs  Categorized settings and profile editing
   src/preferences.rs Theme application and interface translations
@@ -314,7 +368,8 @@ macOS Xcode and Metal tooling).
 
 The tray and Explorer menu are implemented on Windows. macOS Finder extensions and Linux file
 manager integrations will be separate platform adapters; no Windows APIs enter the shared engine.
-The non-Windows background entry point opens settings because those tray adapters are not yet present.
+The non-Windows background entry point opens the main conversions window because those tray adapters
+are not yet present.
 
 ## Manual validation
 

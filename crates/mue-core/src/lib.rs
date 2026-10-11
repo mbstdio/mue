@@ -25,6 +25,7 @@ pub enum ConversionChoice {
 pub enum Request {
     Background,
     Settings,
+    Conversions,
     Progress,
     Quit,
     Convert {
