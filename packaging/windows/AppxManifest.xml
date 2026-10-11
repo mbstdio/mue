@@ -21,7 +21,7 @@
   </Capabilities>
   <Applications>
     <Application Id="Mue" Executable="mue.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
-      <uap:VisualElements DisplayName="Mue" Description="Image and video conversion"
+      <uap:VisualElements DisplayName="Mue" Description="Image, video and audio conversion"
                          BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png"
                          Square44x44Logo="Assets\Square44x44Logo.png" />
       <Extensions>
@@ -34,6 +34,12 @@
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B5" Path="mue_shell.dll" ThreadingModel="STA" />
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B6" Path="mue_shell.dll" ThreadingModel="STA" />
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B7" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B8" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6B9" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6BA" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6BB" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6BC" Path="mue_shell.dll" ThreadingModel="STA" />
+              <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6BD" Path="mue_shell.dll" ThreadingModel="STA" />
               <com:Class Id="B28AF997-F05D-4217-8CE9-1547EA69B6A9" Path="mue_shell.dll" ThreadingModel="STA" />
             </com:SurrogateServer>
           </com:ComServer>
@@ -47,6 +53,12 @@
               <desktop4:Verb Id="Mue04MP4" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B5" />
               <desktop4:Verb Id="Mue05MP4H265" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B7" />
               <desktop4:Verb Id="Mue06WebM" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B6" />
+              <desktop4:Verb Id="Mue07MP3" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B8" />
+              <desktop4:Verb Id="Mue08M4A" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6B9" />
+              <desktop4:Verb Id="Mue09WAV" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6BA" />
+              <desktop4:Verb Id="Mue10FLAC" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6BB" />
+              <desktop4:Verb Id="Mue11Opus" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6BC" />
+              <desktop4:Verb Id="Mue12Ogg" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6BD" />
               <desktop4:Verb Id="Mue99Profiles" Clsid="B28AF997-F05D-4217-8CE9-1547EA69B6A9" />
             </desktop4:ItemType>
           </desktop4:FileExplorerContextMenus>

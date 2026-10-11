@@ -17,6 +17,10 @@ const ICONS: &[(&str, &str)] = &[
         "icons/video.svg",
         "<rect x='3' y='3' width='18' height='18' rx='2'/><path d='m10 8 6 4-6 4Z'/>",
     ),
+    (
+        "icons/audio.svg",
+        "<path d='M9 18V5l12-2v13M9 9l12-2'/><ellipse cx='6' cy='18' rx='3' ry='3'/><ellipse cx='18' cy='16' rx='3' ry='3'/>",
+    ),
     ("icons/check.svg", "<path d='m5 12 4 4L19 6'/>"),
     ("icons/minus.svg", "<path d='M5 12h14'/>"),
     ("icons/close.svg", "<path d='m6 6 12 12M6 18 18 6'/>"),

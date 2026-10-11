@@ -41,7 +41,7 @@ impl Tray {
             }
         }
         let icon = TrayIconBuilder::new()
-            .with_tooltip("Mue — Image and video conversion")
+            .with_tooltip("Mue — Image, video and audio conversion")
             .with_icon(Icon::from_rgba(rgba, 32, 32)?)
             .with_menu(Box::new(menu))
             .build()?;

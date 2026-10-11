@@ -1,22 +1,23 @@
 # Mue
 
-Image and video conversion from the Windows 11 context menu, built with Rust, GPUI, and FFmpeg.
+Image, video, and audio conversion from the Windows 11 context menu, built with Rust, GPUI, and FFmpeg.
 
 ## Features
 
 - Direct conversion to JPG, PNG, WebP, MP4 (H.264 / AAC), MP4 (H.265 / AAC), and WebM (VP9 / Opus).
-- A final **Profiles** submenu containing saved image or video conversion profiles.
+- Audio conversion to MP3, M4A (AAC), WAV (16-bit PCM), FLAC, Opus, and Ogg (Vorbis).
+- A final **Profiles** submenu containing saved image, video, or audio conversion profiles.
 - GPUI settings for image quality, PNG compression, maximum dimensions, JPEG transparency
   background, video quality, CBR/VBR bitrate control (one or two passes), encoding speed,
   frame rate limit, audio, and metadata.
 - H.264 and H.265 (HEVC) MP4 conversions each have their own direct conversion settings.
 - Custom output filename templates with prefixes, suffixes, profile names, and source/output dimensions.
-- Categorized settings with General, Image, and Video navigation and the application version.
+- Categorized settings with General, Image, Video, and Audio navigation and the application version.
 - System/light/dark appearance, English/French interface languages, optional Windows sign-in
   startup, and configurable automatic hiding of completed conversions.
 - One application instance, a Windows tray icon, and a sequential conversion queue.
 - A compact, non-focusing progress popup on the cursor's monitor, above the taskbar, with an expandable conversion queue. When automatic hiding is enabled, it closes as soon as the queue finishes; errors remain visible. Open Conversions from the tray to view the history.
-- Cancellation, estimated video time remaining, and revealing the output in File Explorer.
+- Cancellation, estimated video/audio time remaining, and revealing the output in File Explorer.
 - Progress popup actions use icons with tooltips. Clear finished conversions removes completed,
   failed, and cancelled entries from the queue history while keeping active jobs and output files.
 - Original files preserved; filename collisions receive a numeric suffix. Results become
@@ -61,6 +62,9 @@ Command-line entry points:
 .\target\debug\mue.exe --convert jpg "C:\Pictures\photo.png"
 .\target\debug\mue.exe --convert mp4 "C:\Videos\clip.mov" "C:\Videos\other.mkv"
 .\target\debug\mue.exe --convert mp4-h265 "C:\Videos\clip.mov"
+.\target\debug\mue.exe --convert mp3 "C:\Music\track.flac"
+.\target\debug\mue.exe --convert m4a "C:\Music\track.wav"
+.\target\debug\mue.exe --convert opus "C:\Music\track.mp3"
 .\target\debug\mue.exe --quit
 ```
 
@@ -99,8 +103,9 @@ Mue
 ```
 
 Videos show direct MP4 (H.264 / AAC), MP4 (H.265 / AAC), and WebM (VP9 / Opus) commands instead.
+Audio files show MP3, M4A (AAC), WAV (PCM 16-bit), FLAC, Opus, and Ogg (Vorbis) commands.
 The Profiles entry is disabled when no compatible profile
-exists. A selection must contain only supported images or only supported videos; mixed selections
+exists. A selection must contain only supported images, only supported videos, or only supported audio files; mixed selections
 have no compatible conversion and hide Mue. Reopen the menu after saving or deleting a profile.
 
 Windows 11 supplies the application-level Mue group. Each direct format and Profiles is registered
@@ -134,7 +139,7 @@ have their own Apache-2.0 licenses. Application licensing and production signing
 
 The settings window uses a compact category sidebar, with the application version pinned at
 the bottom. **General** contains appearance, language, startup, conversion-window behavior,
-and application/engine information. **Image** and **Video** each contain their direct conversion
+and application/engine information. **Image**, **Video**, and **Audio** each contain their direct conversion
 defaults and saved profiles. Save, duplicate, delete, and conversion actions remain visible while
 the profile editor scrolls.
 
@@ -153,6 +158,7 @@ Profile edits remain drafts until **Save changes**. Switching categories or prof
 drafts, including incomplete input, for the lifetime of the settings window. Creating, duplicating,
 and deleting a profile update the saved profile list immediately. Existing settings files without
 general preferences load with the defaults above and preserve their conversion settings.
+Existing settings automatically receive the six audio defaults while retaining saved profiles and edits.
 
 User settings are stored in the platform's local data directory under `Mue/profiles.json`
 (`%LOCALAPPDATA%\Mue\profiles.json` on Windows). The file is validated and replaced atomically;
@@ -171,6 +177,9 @@ in drafts and copied when duplicating a profile. Available variables:
 | `{profile}` | Profile name (invalid filename characters are replaced with `_`) |
 | `{width}` / `{height}` | Actual encoded output dimensions in pixels, after resizing and rotation |
 | `{source_width}` / `{source_height}` | Original stream dimensions in pixels, before resizing and rotation |
+
+Audio templates support `{filename}`, `{ext}`, and `{profile}`. Dimension variables are rejected
+when saving an audio profile because audio streams have no image dimensions.
 
 For example, `{filename}-web.{ext}` produces `image-web.jpg` for a JPG conversion.
 `web-{filename}` produces `web-image.jpg`: the output extension is appended when the
@@ -191,6 +200,20 @@ are validated when saving the profile.
 Image inputs: JPG/JPEG, PNG, WebP, BMP, TIFF. Only still images are in scope; animated inputs are
 not offered as separate output formats. Video inputs: MP4/M4V, MOV, MKV, AVI, WebM, MPEG/MPG,
 WMV, TS/MTS/M2TS. Decoding also depends on the bundled FFmpeg's capabilities.
+Audio inputs: MP3, M4A, AAC, WAV, FLAC, Opus, Ogg/OGA, WMA, and AIF/AIFF.
+Audio output is offered only for audio inputs; extracting audio from videos is not supported.
+
+- Audio uses the first audio stream, excluding embedded artwork and other streams. Sample rate
+  and channel layout follow encoder support; FFmpeg may resample or downmix for compatibility.
+- MP3 uses `libmp3lame` with a constant bitrate from 32, 40, 48, 56, 64, 80, 96, 112, 128,
+  160, 192, 224, 256, or 320 kbps. M4A uses AAC, Opus uses `libopus`, and Ogg uses `libvorbis`.
+  Audio profiles default to 128 kbps. Opus allows 16–510 kbps; AAC and Vorbis allow 16–512 kbps
+  as requested bitrates, subject to encoder limits for the source's sample rate and channels.
+- WAV uses uncompressed 16-bit PCM (`pcm_s16le`), reducing higher source precision to 16 bits.
+  FLAC uses lossless compression with FFmpeg's supported sample precision. Neither exposes a
+  bitrate control. Converting a lossy source to WAV or FLAC cannot restore lost quality.
+- Audio metadata preservation is best effort and depends on the output container. Filename
+  templates, collision suffixes, cancellation, progress, and output publication work like video.
 
 - Maximum dimensions preserve aspect ratio and do not upscale. Video dimensions are even for
   H.264/H.265/VP9 compatibility. Display rotation is applied by FFmpeg.
@@ -254,7 +277,18 @@ After rebuilding and relaunching Mue:
     `{filename}-{source_width}x{source_height}-to-{width}x{height}-{profile}.{ext}` and compare
     names with the source stream and actual output dimensions. Try profile names containing
     `/`, `:`, or braces, then invalid templates (unknown variables, unmatched braces, paths,
-    `CON`, or blank input) and verify clear errors with no overwritten files.
+     `CON`, or blank input) and verify clear errors with no overwritten files.
+13. Open Audio and convert a WAV or FLAC source to each of the six formats. Check playback,
+    duration, metadata, progress, and preservation of the source; repeat using a file with artwork.
+14. Save, duplicate, and delete audio profiles. Switch categories with an incomplete bitrate
+    draft and check it is retained. Restart Mue and verify audio settings persist. Check invalid
+    MP3/Opus bitrates and dimension variables are rejected before conversion.
+15. After rebuilding and reinstalling the Explorer extension, check all six audio commands and
+    saved audio profiles on single/multiple selections. Audio commands should be absent on videos
+    and mixed media selections. Cancel an audio conversion and check temporary-file cleanup.
+16. Upgrade an existing settings file and verify audio defaults appear while existing image/video
+    settings and profiles remain intact. Try audio filename templates and repeated conversions to
+    the same format to check collision suffixes and original-file preservation.
 
 ## Cross-platform structure
 

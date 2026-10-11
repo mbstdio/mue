@@ -35,7 +35,7 @@ pub(crate) struct SettingsView {
     category: Category,
     ui_requests: Arc<Mutex<Vec<Request>>>,
     drafts: HashMap<uuid::Uuid, ProfileDraft>,
-    media_selection: [Option<uuid::Uuid>; 2],
+    media_selection: HashMap<MediaKind, uuid::Uuid>,
 }
 
 struct ProfileDraft {
@@ -49,6 +49,7 @@ enum Category {
     General,
     Image,
     Video,
+    Audio,
 }
 
 impl Category {
@@ -57,6 +58,7 @@ impl Category {
             Self::General => "General",
             Self::Image => "Image",
             Self::Video => "Video",
+            Self::Audio => "Audio",
         }
     }
     fn description(self) -> &'static str {
@@ -64,6 +66,7 @@ impl Category {
             Self::General => "Customize appearance, startup and conversion notifications.",
             Self::Image => "Configure image formats and saved conversion profiles.",
             Self::Video => "Configure video formats and saved conversion profiles.",
+            Self::Audio => "Configure audio formats and saved conversion profiles.",
         }
     }
     fn kind(self) -> Option<MediaKind> {
@@ -71,6 +74,7 @@ impl Category {
             Self::General => None,
             Self::Image => Some(MediaKind::Image),
             Self::Video => Some(MediaKind::Video),
+            Self::Audio => Some(MediaKind::Audio),
         }
     }
 }
@@ -96,7 +100,7 @@ impl SettingsView {
             category: Category::General,
             ui_requests,
             drafts: HashMap::new(),
-            media_selection: [None, None],
+            media_selection: HashMap::new(),
         };
         view.populate(window, cx);
         view
@@ -162,11 +166,8 @@ impl SettingsView {
             self.settings.profiles[index].clone()
         };
         self.message.clear();
-        self.media_selection[if self.draft.format.kind() == MediaKind::Image {
-            0
-        } else {
-            1
-        }] = Some(self.draft.id);
+        self.media_selection
+            .insert(self.draft.format.kind(), self.draft.id);
         if let Some(draft) = self.drafts.remove(&self.draft.id) {
             self.draft = draft.profile;
             self.inputs = draft.inputs;
@@ -179,7 +180,7 @@ impl SettingsView {
     fn change_category(&mut self, category: Category, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(kind) = category.kind() {
             if self.draft.format.kind() != kind {
-                let id = self.media_selection[if kind == MediaKind::Image { 0 } else { 1 }];
+                let id = self.media_selection.get(&kind).copied();
                 if let Some(index) = self
                     .settings
                     .profiles
@@ -273,8 +274,10 @@ impl SettingsView {
         let mut profile = self.draft.clone();
         profile.name = value("name").trim().into();
         profile.filename_template = value("filename-template");
-        profile.max_width = optional("width")?;
-        profile.max_height = optional("height")?;
+        if profile.format.kind() != MediaKind::Audio {
+            profile.max_width = optional("width")?;
+            profile.max_height = optional("height")?;
+        }
         if profile.format.kind() == MediaKind::Image {
             profile.quality = value("quality").parse().context("Invalid image quality")?;
             profile.png_compression = value("compression")
@@ -284,7 +287,7 @@ impl SettingsView {
                 .trim()
                 .trim_start_matches('#')
                 .to_uppercase();
-        } else {
+        } else if profile.format.kind() == MediaKind::Video {
             if profile.rate_control == RateControl::Crf {
                 profile.video_crf = value("crf").parse().context("Invalid CRF")?;
             } else {
@@ -306,6 +309,11 @@ impl SettingsView {
             profile.max_fps = optional("fps")?;
             profile.audio_bitrate_kbps =
                 value("bitrate").parse().context("Invalid audio bitrate")?;
+        } else if !profile.format.is_lossless_audio() {
+            profile.audio_bitrate_kbps = value("bitrate")
+                .trim()
+                .parse()
+                .context("Invalid audio bitrate")?;
         }
         profile.validate()?;
         Ok(profile)
@@ -556,6 +564,7 @@ impl Render for SettingsView {
             (Category::General, "icons/settings.svg"),
             (Category::Image, "icons/image.svg"),
             (Category::Video, "icons/video.svg"),
+            (Category::Audio, "icons/audio.svg"),
         ] {
             sidebar = sidebar.child(
                 Button::new(("category", category as usize))
@@ -671,6 +680,7 @@ impl Render for SettingsView {
                 .on_click(cx.listener(|view, _, window, cx| view.add(false, window, cx))),
         );
         let image = self.draft.format.kind() == MediaKind::Image;
+        let audio = self.draft.format.kind() == MediaKind::Audio;
         let mut form = div()
             .id("profile-form")
             .flex_1()
@@ -708,9 +718,11 @@ impl Render for SettingsView {
                 div()
                     .text_sm()
                     .text_color(cx.theme().muted_foreground)
-                    .child(self.t(
-                    "Originals are preserved. Maximum sizes never upscale or distort the source.",
-                )),
+                    .child(self.t(if audio {
+                        "Originals are preserved. Outputs are saved next to the source without overwriting files."
+                    } else {
+                        "Originals are preserved. Maximum sizes never upscale or distort the source."
+                    })),
             )
             .child(self.field("Name", "name"));
         let mut formats = div().flex().flex_wrap().gap_2();
@@ -742,16 +754,21 @@ impl Render for SettingsView {
         }
         form = form
             .child(self.field("Output filename template", "filename-template"))
-            .child(self.hint("Variables: {filename} (original name without extension), {ext} (output extension), {profile} (profile name).", cx))
-            .child(self.hint("Dimensions: {width} / {height} (converted file), {source_width} / {source_height} (original file).", cx))
-            .child(self.hint("Examples: {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. The output extension is added automatically if missing.", cx));
-        form = form.child(
-            div()
-                .flex()
-                .gap_4()
-                .child(self.field("Maximum width (blank = original)", "width"))
-                .child(self.field("Maximum height (blank = original)", "height")),
-        );
+            .child(self.hint("Variables: {filename} (original name without extension), {ext} (output extension), {profile} (profile name).", cx));
+        if audio {
+            form = form.child(self.hint("Example: {filename}-{profile}.{ext}. The output extension is added automatically if missing.", cx));
+        } else {
+            form = form
+                .child(self.hint("Dimensions: {width} / {height} (converted file), {source_width} / {source_height} (original file).", cx))
+                .child(self.hint("Examples: {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. The output extension is added automatically if missing.", cx));
+            form = form.child(
+                div()
+                    .flex()
+                    .gap_4()
+                    .child(self.field("Maximum width (blank = original)", "width"))
+                    .child(self.field("Maximum height (blank = original)", "height")),
+            );
+        }
         if image {
             form = form.child(if self.draft.format == OutputFormat::Png {
                 self.field("PNG compression (0–9, lossless)", "compression")
@@ -763,6 +780,24 @@ impl Render for SettingsView {
             if self.draft.format == OutputFormat::Jpg {
                 form = form.child(self.field("Transparency background (RGB hex)", "background"));
             }
+        } else if audio {
+            if self.draft.format.is_lossless_audio() {
+                form = form.child(self.hint(if self.draft.format == OutputFormat::Wav {
+                    "WAV uses uncompressed 16-bit PCM. Higher source precision is reduced to 16 bits."
+                } else {
+                    "FLAC uses lossless compression. Converting a lossy source does not restore lost quality."
+                }, cx));
+            } else {
+                form = form.child(self.field("Audio bitrate (kbps)", "bitrate"));
+                if self.draft.format == OutputFormat::Mp3 {
+                    form = form.child(self.hint("MP3 bitrates: 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320 kbps.", cx));
+                } else if self.draft.format == OutputFormat::Opus {
+                    form = form.child(self.hint("Opus bitrate: 16–510 kbps.", cx));
+                } else {
+                    form = form.child(self.hint("Audio bitrate: 16–512 kbps.", cx));
+                }
+            }
+            form = form.child(self.hint("The first audio stream is converted. Embedded artwork is not copied. Sample rate and channels follow encoder support.", cx));
         } else {
             let mut modes = div().flex().flex_wrap().gap_2();
             for (id, mode, label) in [

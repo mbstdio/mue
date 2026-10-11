@@ -7,11 +7,12 @@ use uuid::Uuid;
 use crate::naming::FilenameTemplate;
 use crate::{ConversionChoice, data_dir};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaKind {
     Image,
     Video,
+    Audio,
 }
 
 impl MediaKind {
@@ -20,6 +21,8 @@ impl MediaKind {
             "jpg" | "jpeg" | "png" | "webp" | "bmp" | "tif" | "tiff" => Some(Self::Image),
             "mp4" | "m4v" | "mov" | "mkv" | "avi" | "webm" | "mpeg" | "mpg" | "wmv" | "ts"
             | "mts" | "m2ts" => Some(Self::Video),
+            "mp3" | "m4a" | "aac" | "wav" | "flac" | "opus" | "ogg" | "oga" | "wma" | "aif"
+            | "aiff" => Some(Self::Audio),
             _ => None,
         }
     }
@@ -34,17 +37,29 @@ pub enum OutputFormat {
     Mp4,
     Webm,
     Mp4H265,
+    Mp3,
+    M4a,
+    Wav,
+    Flac,
+    Opus,
+    Ogg,
 }
 
 impl OutputFormat {
     // Append new formats to preserve the Explorer CLSIDs derived from these indices.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 12] = [
         Self::Jpg,
         Self::Png,
         Self::Webp,
         Self::Mp4,
         Self::Webm,
         Self::Mp4H265,
+        Self::Mp3,
+        Self::M4a,
+        Self::Wav,
+        Self::Flac,
+        Self::Opus,
+        Self::Ogg,
     ];
 
     pub fn command_name(self) -> &'static str {
@@ -59,6 +74,10 @@ impl OutputFormat {
         matches!(self, Self::Mp4 | Self::Mp4H265)
     }
 
+    pub fn is_lossless_audio(self) -> bool {
+        matches!(self, Self::Wav | Self::Flac)
+    }
+
     pub fn extension(self) -> &'static str {
         match self {
             Self::Jpg => "jpg",
@@ -66,6 +85,12 @@ impl OutputFormat {
             Self::Webp => "webp",
             Self::Mp4 | Self::Mp4H265 => "mp4",
             Self::Webm => "webm",
+            Self::Mp3 => "mp3",
+            Self::M4a => "m4a",
+            Self::Wav => "wav",
+            Self::Flac => "flac",
+            Self::Opus => "opus",
+            Self::Ogg => "ogg",
         }
     }
 
@@ -77,6 +102,12 @@ impl OutputFormat {
             Self::Mp4 => "MP4 (H.264 / AAC)",
             Self::Mp4H265 => "MP4 (H.265 / AAC)",
             Self::Webm => "WebM (VP9 / Opus)",
+            Self::Mp3 => "MP3",
+            Self::M4a => "M4A (AAC)",
+            Self::Wav => "WAV (PCM 16-bit)",
+            Self::Flac => "FLAC",
+            Self::Opus => "Opus",
+            Self::Ogg => "Ogg (Vorbis)",
         }
     }
 
@@ -84,6 +115,9 @@ impl OutputFormat {
         match self {
             Self::Jpg | Self::Png | Self::Webp => MediaKind::Image,
             Self::Mp4 | Self::Mp4H265 | Self::Webm => MediaKind::Video,
+            Self::Mp3 | Self::M4a | Self::Wav | Self::Flac | Self::Opus | Self::Ogg => {
+                MediaKind::Audio
+            }
         }
     }
 
@@ -91,7 +125,7 @@ impl OutputFormat {
         Self::ALL
             .into_iter()
             .find(|format| format.command_name() == value.to_ascii_lowercase())
-            .context("Supported output formats: jpg, png, webp, mp4, mp4-h265, webm")
+            .context("Supported output formats: jpg, png, webp, mp4, mp4-h265, webm, mp3, m4a, wav, flac, opus, ogg")
     }
 }
 
@@ -124,6 +158,10 @@ pub enum RateControl {
 fn default_video_bitrate() -> u32 {
     5000
 }
+
+const MP3_BITRATES: &[u32] = &[
+    32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320,
+];
 
 fn default_filename_template() -> String {
     "{filename}.{ext}".into()
@@ -200,11 +238,20 @@ impl Profile {
         {
             self.max_video_bitrate_kbps = None;
         }
+        if format == OutputFormat::Mp3 && !MP3_BITRATES.contains(&self.audio_bitrate_kbps) {
+            self.audio_bitrate_kbps = 192;
+        } else if format == OutputFormat::Opus {
+            self.audio_bitrate_kbps = self.audio_bitrate_kbps.min(510);
+        }
     }
 
     pub fn validate(&self) -> Result<()> {
-        FilenameTemplate::parse(&self.filename_template)?
-            .validate(self.format.extension(), &self.name)?;
+        let template = FilenameTemplate::parse(&self.filename_template)?;
+        ensure!(
+            self.format.kind() != MediaKind::Audio || !template.needs_dimensions(),
+            "Audio filename templates cannot use dimension variables"
+        );
+        template.validate(self.format.extension(), &self.name)?;
         ensure!(
             !self.name.trim().is_empty() && self.name.len() <= 120,
             "Profile name must contain 1–120 characters"
@@ -245,6 +292,18 @@ impl Profile {
             (16..=512).contains(&self.audio_bitrate_kbps),
             "Audio bitrate must be between 16 and 512 kbps"
         );
+        if self.format == OutputFormat::Mp3 {
+            ensure!(
+                MP3_BITRATES.contains(&self.audio_bitrate_kbps),
+                "MP3 bitrate must be one of: 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320 kbps"
+            );
+        }
+        if self.format == OutputFormat::Opus {
+            ensure!(
+                self.audio_bitrate_kbps <= 510,
+                "Opus bitrate must not exceed 510 kbps"
+            );
+        }
         ensure!(
             (1..=1_000_000).contains(&self.video_bitrate_kbps),
             "Video bitrate must be between 1 and 1000000 kbps"
@@ -389,6 +448,19 @@ impl Settings {
                 {
                     settings.defaults.push(Profile::new(OutputFormat::Mp4));
                     migrated = true;
+                }
+                for format in OutputFormat::ALL
+                    .into_iter()
+                    .filter(|format| format.kind() == MediaKind::Audio)
+                {
+                    if !settings
+                        .defaults
+                        .iter()
+                        .any(|profile| profile.format == format)
+                    {
+                        settings.defaults.push(Profile::new(format));
+                        migrated = true;
+                    }
                 }
                 settings.validate()?;
                 if migrated {

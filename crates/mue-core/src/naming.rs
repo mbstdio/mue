@@ -83,6 +83,20 @@ impl<'a> FilenameTemplate<'a> {
             .any(|part| matches!(part, Part::Variable(Variable::Width | Variable::Height)))
     }
 
+    pub fn needs_dimensions(&self) -> bool {
+        self.parts.iter().any(|part| {
+            matches!(
+                part,
+                Part::Variable(
+                    Variable::Width
+                        | Variable::Height
+                        | Variable::SourceWidth
+                        | Variable::SourceHeight
+                )
+            )
+        })
+    }
+
     pub fn validate(&self, extension: &str, profile: &str) -> Result<()> {
         // Source-dependent names can only be fully validated with an actual conversion.
         if self.parts.iter().any(|part| {

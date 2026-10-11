@@ -225,11 +225,16 @@ impl Engine {
         let tools = Tools::bundled()?;
         tools.verify()?;
         let media = tools.probe(&job.source, job.profile.format.kind(), &job.cancel)?;
+        let stream_type = if job.profile.format.kind() == MediaKind::Audio {
+            "audio"
+        } else {
+            "video"
+        };
         let stream = media
             .streams
             .iter()
-            .find(|s| s.codec_type.as_deref() == Some("video"))
-            .context("The file contains no image or video stream")?;
+            .find(|s| s.codec_type.as_deref() == Some(stream_type))
+            .with_context(|| format!("The file contains no {stream_type} stream"))?;
         if job.profile.format.kind() == MediaKind::Image {
             ensure!(
                 stream.nb_read_frames.as_deref() == Some("1"),
@@ -322,7 +327,7 @@ impl Engine {
                 }
                 for seconds in receiver.try_iter() {
                     if let Some(duration) =
-                        duration.filter(|_| job.profile.format.kind() == MediaKind::Video)
+                        duration.filter(|_| job.profile.format.kind() != MediaKind::Image)
                     {
                         let fraction = ((f64::from(pass - 1)
                             + (seconds / duration).clamp(0.0, 1.0))
@@ -555,6 +560,35 @@ fn add_encoding_args(
     source_fps: Option<f64>,
     analysis_pass: bool,
 ) {
+    if profile.format.kind() == MediaKind::Audio {
+        command.args([
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-sn",
+            "-dn",
+            "-c:a",
+            match profile.format {
+                OutputFormat::Mp3 => "libmp3lame",
+                OutputFormat::M4a => "aac",
+                OutputFormat::Wav => "pcm_s16le",
+                OutputFormat::Flac => "flac",
+                OutputFormat::Opus => "libopus",
+                OutputFormat::Ogg => "libvorbis",
+                _ => unreachable!(),
+            },
+        ]);
+        if !profile.format.is_lossless_audio() {
+            command.args(["-b:a", &format!("{}k", profile.audio_bitrate_kbps)]);
+        }
+        if profile.format == OutputFormat::M4a {
+            command.args(["-movflags", "+faststart"]);
+        }
+        if !profile.keep_metadata {
+            command.args(["-map_metadata", "-1"]);
+        }
+        return;
+    }
     let width = profile
         .max_width
         .map_or("iw".into(), |w| format!("min(iw\\,{w})"));
@@ -699,6 +733,12 @@ fn add_encoding_args(
                 command.arg("-an");
             }
         }
+        OutputFormat::Mp3
+        | OutputFormat::M4a
+        | OutputFormat::Wav
+        | OutputFormat::Flac
+        | OutputFormat::Opus
+        | OutputFormat::Ogg => unreachable!(),
     }
 }
 

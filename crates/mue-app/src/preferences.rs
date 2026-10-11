@@ -60,6 +60,28 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         "General" => "Général",
         "Image" => "Image",
         "Video" => "Vidéo",
+        "Audio" => "Audio",
+        "Configure audio formats and saved conversion profiles." => {
+            "Configurez les formats audio et les profils enregistrés."
+        }
+        "Audio bitrate (kbps)" => "Débit audio (kbit/s)",
+        "MP3 bitrates: 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320 kbps." => {
+            "Débits MP3 : 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320 kbit/s."
+        }
+        "Opus bitrate: 16–510 kbps." => "Débit Opus : 16–510 kbit/s.",
+        "Audio bitrate: 16–512 kbps." => "Débit audio : 16–512 kbit/s.",
+        "WAV uses uncompressed 16-bit PCM. Higher source precision is reduced to 16 bits." => {
+            "WAV utilise du PCM 16 bits non compressé. Une précision source supérieure est réduite à 16 bits."
+        }
+        "FLAC uses lossless compression. Converting a lossy source does not restore lost quality." => {
+            "FLAC utilise une compression sans perte. Convertir une source avec perte ne restaure pas la qualité perdue."
+        }
+        "The first audio stream is converted. Embedded artwork is not copied. Sample rate and channels follow encoder support." => {
+            "La première piste audio est convertie. Les pochettes intégrées ne sont pas copiées. La fréquence et les canaux dépendent de l’encodeur."
+        }
+        "Example: {filename}-{profile}.{ext}. The output extension is added automatically if missing." => {
+            "Exemple : {filename}-{profile}.{ext}. L’extension de sortie est ajoutée automatiquement si elle manque."
+        }
         "SETTINGS" => "PARAMÈTRES",
         "Customize appearance, startup and conversion notifications." => {
             "Personnalisez l’apparence, le démarrage et le suivi des conversions."
