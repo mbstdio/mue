@@ -4,8 +4,8 @@ use std::{
 };
 
 use gpui::{
-    ClickEvent, Context, Entity, ExternalPaths, Focusable, PathPromptOptions, Render, SharedString,
-    Window, div, prelude::*, px,
+    ClickEvent, Context, Entity, ExternalPaths, FocusHandle, Focusable, Image, PathPromptOptions,
+    Render, SharedString, Window, actions, div, img, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme, Disableable, Icon, Sizable,
@@ -24,12 +24,16 @@ use uuid::Uuid;
 
 use crate::{preferences, ui::SharedSettings};
 
+actions!(conversions, [SelectAllFiles, DeselectAllFiles]);
+
 struct PreparedFile {
     id: Uuid,
     path: PathBuf,
     kind: MediaKind,
     profile: Option<Uuid>,
     selected: bool,
+    preview: Option<Arc<Image>>,
+    preview_pending: bool,
 }
 
 pub(crate) struct ConversionsView {
@@ -41,6 +45,9 @@ pub(crate) struct ConversionsView {
     language: Option<InterfaceLanguage>,
     open_picker: Option<Uuid>,
     picker_menu: Option<Entity<PopupMenu>>,
+    focus_handle: FocusHandle,
+    selection_anchor: Option<Uuid>,
+    preview_running: bool,
 }
 
 impl ConversionsView {
@@ -52,6 +59,7 @@ impl ConversionsView {
         settings: SharedSettings,
         engine: Engine,
         requests: Arc<Mutex<Vec<Request>>>,
+        cx: &mut Context<Self>,
     ) -> Self {
         Self {
             settings,
@@ -62,6 +70,45 @@ impl ConversionsView {
             language: None,
             open_picker: None,
             picker_menu: None,
+            focus_handle: cx.focus_handle(),
+            selection_anchor: None,
+            preview_running: false,
+        }
+    }
+
+    fn select_all(&mut self, selected: bool, cx: &mut Context<Self>) {
+        for file in &mut self.files {
+            file.selected = selected;
+        }
+        self.selection_anchor = None;
+        cx.notify();
+    }
+
+    fn select_file(&mut self, id: Uuid, selected: bool, shift: bool, cx: &mut Context<Self>) {
+        let Some(index) = self.files.iter().position(|file| file.id == id) else {
+            return;
+        };
+        let anchor = self
+            .selection_anchor
+            .and_then(|id| self.files.iter().position(|file| file.id == id));
+        if let Some(anchor) = anchor.filter(|_| shift) {
+            for file in &mut self.files[index.min(anchor)..=index.max(anchor)] {
+                file.selected = true;
+            }
+        } else {
+            self.files[index].selected = selected;
+            self.selection_anchor = Some(id);
+        }
+        cx.notify();
+    }
+
+    fn clear_missing_anchor(&mut self) {
+        if !self
+            .files
+            .iter()
+            .any(|file| Some(file.id) == self.selection_anchor)
+        {
+            self.selection_anchor = None;
         }
     }
 
@@ -105,10 +152,42 @@ impl ConversionsView {
                 kind,
                 profile: None,
                 selected: false,
+                preview: None,
+                preview_pending: kind != MediaKind::Audio,
             });
         }
         self.message = rejected.join("\n");
+        self.load_next_preview(cx);
         cx.notify();
+    }
+
+    fn load_next_preview(&mut self, cx: &mut Context<Self>) {
+        if self.preview_running {
+            return;
+        }
+        let Some(file) = self.files.iter_mut().find(|file| file.preview_pending) else {
+            return;
+        };
+        file.preview_pending = false;
+        let id = file.id;
+        let path = file.path.clone();
+        self.preview_running = true;
+        // Generate one thumbnail at a time to avoid competing with the conversion worker.
+        let task = cx
+            .background_executor()
+            .spawn(async move { crate::preview::thumbnail(&path) });
+        cx.spawn(async move |view, cx| {
+            let preview = task.await;
+            let _ = view.update(cx, |view, cx| {
+                if let Some(file) = view.files.iter_mut().find(|file| file.id == id) {
+                    file.preview = preview;
+                }
+                view.preview_running = false;
+                view.load_next_preview(cx);
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     fn pick_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -161,6 +240,7 @@ impl ConversionsView {
         match self.engine.enqueue_batch(batch) {
             Ok(_) => {
                 self.files.retain(|file| !ids.contains(&file.id));
+                self.clear_missing_anchor();
                 self.message.clear();
             }
             Err(error) => self.message = format!("{error:#}"),
@@ -300,9 +380,16 @@ impl ConversionsView {
         id: Uuid,
         path: &std::path::Path,
         kind: MediaKind,
+        preview: Option<Arc<Image>>,
         cx: &Context<Self>,
     ) -> impl IntoElement {
-        let full_path = path.display().to_string();
+        let full_path = display_path(path);
+        let icon_path = match kind {
+            MediaKind::Image => "icons/image.svg",
+            MediaKind::Video => "icons/video.svg",
+            MediaKind::Audio => "icons/audio.svg",
+        };
+        let icon = move || Icon::default().path(icon_path).into_any_element();
         div()
             .id(SharedString::from(format!("file-label-{id}")))
             .flex()
@@ -311,13 +398,22 @@ impl ConversionsView {
             .flex_1()
             .min_w(px(0.0))
             .child(
-                Icon::default()
-                    .path(match kind {
-                        MediaKind::Image => "icons/image.svg",
-                        MediaKind::Video => "icons/video.svg",
-                        MediaKind::Audio => "icons/audio.svg",
-                    })
-                    .text_color(cx.theme().muted_foreground),
+                div()
+                    .w(px(48.0))
+                    .h(px(36.0))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(match preview {
+                        Some(preview) => img(preview)
+                            .size_full()
+                            .with_loading(icon)
+                            .with_fallback(icon)
+                            .into_any_element(),
+                        None => icon(),
+                    }),
             )
             .child(
                 div()
@@ -367,6 +463,27 @@ impl ConversionsView {
                         cx.notify();
                     })),
             );
+        } else if matches!(job.status, JobStatus::Cancelled) {
+            let source = job.source.clone();
+            let profile = job.profile.id;
+            actions = actions.child(
+                Button::new(SharedString::from(format!("restore-{id}")))
+                    .small()
+                    .ghost()
+                    .icon(Icon::default().path("icons/undo.svg"))
+                    .tooltip(t("Return to list"))
+                    .on_click(cx.listener(move |view, _, window, cx| {
+                        view.add_files(vec![source.clone()], cx);
+                        if let Some(file) = view.files.iter_mut().find(|file| file.path == source) {
+                            file.profile.get_or_insert(profile);
+                            view.engine.state.lock().unwrap().jobs.retain(|job| {
+                                job.id != id || !matches!(job.status, JobStatus::Cancelled)
+                            });
+                            view.focus_handle.focus(window);
+                            cx.notify();
+                        }
+                    })),
+            );
         } else if let JobStatus::Completed(output) = &job.status {
             let output = output.clone();
             actions = actions.child(
@@ -395,6 +512,7 @@ impl ConversionsView {
                         id,
                         &job.source,
                         job.profile.format.kind(),
+                        None,
                         cx,
                     ))
                     .child(div().w(px(245.0)).text_sm().truncate().child(format!(
@@ -432,6 +550,26 @@ impl ConversionsView {
     }
 }
 
+fn display_path(path: &std::path::Path) -> String {
+    let path = path.display().to_string();
+    if let Some(path) = path.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{path}")
+    } else if let Some(path) = path
+        .strip_prefix(r"\\?\")
+        .filter(|path| path.as_bytes().get(1..3) == Some(b":\\"))
+    {
+        path.to_owned()
+    } else {
+        path
+    }
+}
+
+impl Focusable for ConversionsView {
+    fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
 impl Render for ConversionsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let settings = self.settings.lock().unwrap().clone();
@@ -463,6 +601,28 @@ impl Render for ConversionsView {
             .count();
         let mut list = div()
             .id("prepared-file-list")
+            .track_focus(&self.focus_handle)
+            .key_context("ConversionList")
+            .on_action(cx.listener(|view, _: &SelectAllFiles, _, cx| {
+                if view.open_picker.is_some() {
+                    cx.propagate();
+                    return;
+                }
+                view.select_all(true, cx);
+            }))
+            .on_action(cx.listener(|view, _: &DeselectAllFiles, _, cx| {
+                if view.open_picker.is_some() {
+                    cx.propagate();
+                    return;
+                }
+                view.select_all(false, cx);
+            }))
+            .on_mouse_down(
+                gpui::MouseButton::Left,
+                cx.listener(|view, _, window, _| {
+                    view.focus_handle.focus(window);
+                }),
+            )
             .flex_1()
             .min_h(px(0.0))
             .overflow_y_scroll()
@@ -499,6 +659,7 @@ impl Render for ConversionsView {
         }
         for file in &self.files {
             let id = file.id;
+            let checked = file.selected;
             let selection_hint = format!(
                 "{}: {}",
                 t("Select file"),
@@ -539,16 +700,39 @@ impl Render for ConversionsView {
                                     .tooltip(move |window, cx| {
                                         Tooltip::new(selection_hint.clone()).build(window, cx)
                                     })
-                                    .on_click(cx.listener(move |view, checked, _, cx| {
-                                        if let Some(file) =
-                                            view.files.iter_mut().find(|file| file.id == id)
-                                        {
-                                            file.selected = *checked;
-                                        }
-                                        cx.notify();
+                                    .on_click(cx.listener(move |view, checked, window, cx| {
+                                        view.select_file(
+                                            id,
+                                            *checked,
+                                            window.modifiers().shift,
+                                            cx,
+                                        );
                                     })),
                             )
-                            .child(Self::file_label(id, &file.path, file.kind, cx))
+                            .child(
+                                div()
+                                    .id(SharedString::from(format!("select-label-{id}")))
+                                    .flex_1()
+                                    .min_w(px(0.0))
+                                    .child(Self::file_label(
+                                        id,
+                                        &file.path,
+                                        file.kind,
+                                        file.preview.clone(),
+                                        cx,
+                                    ))
+                                    .on_click(cx.listener(
+                                        move |view, event: &ClickEvent, window, cx| {
+                                            view.focus_handle.focus(window);
+                                            view.select_file(
+                                                id,
+                                                !checked,
+                                                event.modifiers().shift,
+                                                cx,
+                                            );
+                                        },
+                                    )),
+                            )
                             .child(self.profile_picker(
                                 Some(id),
                                 Some(file.kind),
@@ -581,6 +765,7 @@ impl Render for ConversionsView {
                                             .tooltip(t("Remove file"))
                                             .on_click(cx.listener(move |view, _, _, cx| {
                                                 view.files.retain(|file| file.id != id);
+                                                view.clear_missing_anchor();
                                                 cx.notify();
                                             })),
                                     ),
@@ -624,14 +809,22 @@ impl Render for ConversionsView {
                         .on_click(cx.listener(|view, _, _, _| view.requests.lock().unwrap().push(Request::Settings))))))
             .child(div().flex().flex_wrap().items_center().gap_3()
                 .child(Checkbox::new("select-all").label(t("Select all")).checked(!self.files.is_empty() && selected_count == self.files.len())
-                    .disabled(self.files.is_empty()).on_click(cx.listener(|view, checked, _, cx| {
-                        for file in &mut view.files { file.selected = *checked; } cx.notify();
+                    .tooltip(move |window, cx| Tooltip::new(format!("{} · Ctrl+A", preferences::text(language, "Select all"))).build(window, cx))
+                    .disabled(self.files.is_empty()).on_click(cx.listener(|view, checked, window, cx| {
+                        view.focus_handle.focus(window);
+                        view.select_all(*checked, cx);
                     })))
                 .when(selected_count > 0, |bar| bar
                     .child(div().text_sm().child(format!("{selected_count} {}", t("Selected"))))
+                    .child(Button::new("deselect-all").small().ghost().label(t("Deselect all"))
+                        .tooltip(format!("{} · Ctrl+Shift+A", t("Deselect all")))
+                        .on_click(cx.listener(|view, _, window, cx| {
+                            view.focus_handle.focus(window);
+                            view.select_all(false, cx);
+                        })))
                     .child(self.profile_picker(None, common_kind, None, t("Apply a profile…").into(), cx))
                     .child(Button::new("remove-selected").small().ghost().icon(Icon::default().path("icons/trash.svg")).tooltip(t("Remove selected files"))
-                        .on_click(cx.listener(|view, _, _, cx| { view.files.retain(|file| !file.selected); cx.notify(); })))
+                        .on_click(cx.listener(|view, _, _, cx| { view.files.retain(|file| !file.selected); view.clear_missing_anchor(); cx.notify(); })))
                     .when(common_kind.is_none(), |bar| bar.child(div().text_xs().flex_1().child(t("Select files of the same type to apply a profile."))))))
             .when(!self.message.is_empty(), |view| view.child(div().id("queue-message").max_h(px(100.0)).overflow_y_scroll()
                 .text_sm().whitespace_normal().text_color(cx.theme().danger).child(self.message.clone())))

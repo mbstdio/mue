@@ -34,6 +34,10 @@ const ICONS: &[(&str, &str)] = &[
     ("icons/check.svg", "<path d='m5 12 4 4L19 6'/>"),
     ("icons/minus.svg", "<path d='M5 12h14'/>"),
     ("icons/close.svg", "<path d='m6 6 12 12M6 18 18 6'/>"),
+    (
+        "icons/undo.svg",
+        "<path d='m9 14-5-5 5-5M4 9h10a6 6 0 0 1 0 12h-3'/>",
+    ),
     ("icons/chevron-down.svg", "<path d='m6 9 6 6 6-6'/>"),
     ("icons/chevron-up.svg", "<path d='m6 15 6-6 6 6'/>"),
     (

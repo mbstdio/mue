@@ -4,8 +4,8 @@ use crate::{
 };
 use anyhow::Result;
 use gpui::{
-    App, Application, Bounds, Context, Entity, Render, Window, WindowBounds, WindowHandle,
-    WindowKind, WindowOptions, div, prelude::*, px, size,
+    App, Application, Bounds, Context, Entity, Focusable, KeyBinding, Render, Window, WindowBounds,
+    WindowHandle, WindowKind, WindowOptions, div, prelude::*, px, size,
 };
 use gpui_component::Root;
 use mue_core::{
@@ -28,6 +28,18 @@ pub fn run(settings: SharedSettings, receiver: mpsc::Receiver<Incoming>, lock: F
         .with_assets(crate::assets::Assets)
         .run(move |cx| {
             gpui_component::init(cx);
+            cx.bind_keys([
+                KeyBinding::new(
+                    "ctrl-a",
+                    crate::conversions::SelectAllFiles,
+                    Some("ConversionList"),
+                ),
+                KeyBinding::new(
+                    "ctrl-shift-a",
+                    crate::conversions::DeselectAllFiles,
+                    Some("ConversionList"),
+                ),
+            ]);
             preferences::apply(&settings.lock().unwrap().general, cx);
             let engine = app_engine;
             let stop_engine = engine.clone();
@@ -267,11 +279,12 @@ impl Runtime {
         let view = self
             .conversions_view
             .get_or_insert_with(|| {
-                cx.new(|_| {
+                cx.new(|cx| {
                     ConversionsView::new(
                         self.settings.clone(),
                         self.engine.clone(),
                         self.ui_requests.clone(),
+                        cx,
                     )
                 })
             })
@@ -294,6 +307,7 @@ impl Runtime {
                     preferences::text(language, "Conversions")
                 ));
                 preferences::configure_window(window, cx);
+                view.focus_handle(cx).focus(window);
                 cx.new(|cx| Root::new(view, window, cx))
             },
         )?);

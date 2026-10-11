@@ -6,6 +6,7 @@ mod conversions;
 mod ipc;
 mod platform;
 mod preferences;
+mod preview;
 mod progress;
 mod settings;
 mod ui;

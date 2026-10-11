@@ -123,6 +123,7 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
             "Sélectionnez des fichiers du même type pour appliquer un profil."
         }
         "Select all" => "Tout sélectionner",
+        "Deselect all" => "Tout désélectionner",
         "Select file" => "Sélectionner le fichier",
         "Selected" => "sélectionné(s)",
         "Prepared" => "en préparation",
@@ -130,6 +131,7 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         "Convert this file" => "Convertir ce fichier",
         "Convert ready files" => "Convertir les fichiers prêts",
         "Remove file" => "Retirer le fichier",
+        "Return to list" => "Remettre dans la liste",
         "Remove selected files" => "Retirer les fichiers sélectionnés",
         "Unsupported or unavailable file" => "Fichier non pris en charge ou inaccessible",
         "The queue is full (1000 files maximum)" => "La file est pleine (1 000 fichiers maximum)",
