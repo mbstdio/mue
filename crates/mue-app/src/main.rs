@@ -1,6 +1,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod assets;
+mod components;
 mod ipc;
 mod platform;
 mod preferences;

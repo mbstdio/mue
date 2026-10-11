@@ -135,14 +135,18 @@ pub fn text(language: InterfaceLanguage, english: &'static str) -> &'static str 
         "Name" => "Nom",
         "Output format" => "Format de sortie",
         "Output filename template" => "Modèle du nom de sortie",
-        "Variables: {filename} (original name without extension), {ext} (output extension), {profile} (profile name)." => {
-            "Variables : {filename} (nom original sans extension), {ext} (extension de sortie), {profile} (nom du profil)."
+        "Click a variable to insert it at the cursor or replace the selected text." => {
+            "Cliquez sur une variable pour l’insérer à la position du curseur ou remplacer le texte sélectionné."
         }
-        "Dimensions: {width} / {height} (converted file), {source_width} / {source_height} (original file)." => {
-            "Dimensions : {width} / {height} (fichier converti), {source_width} / {source_height} (fichier original)."
-        }
-        "Examples: {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. The output extension is added automatically if missing." => {
-            "Exemples : {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. L’extension de sortie est ajoutée automatiquement si elle manque."
+        "Original filename without extension" => "Nom du fichier original sans extension",
+        "Output extension" => "Extension de sortie",
+        "Profile name" => "Nom du profil",
+        "Converted file width" => "Largeur du fichier converti",
+        "Converted file height" => "Hauteur du fichier converti",
+        "Original file width" => "Largeur du fichier original",
+        "Original file height" => "Hauteur du fichier original",
+        "Dimensions are unavailable for audio." => {
+            "Les dimensions ne sont pas disponibles pour l’audio."
         }
         "Maximum width (blank = original)" => "Largeur maximale (vide = original)",
         "Maximum height (blank = original)" => "Hauteur maximale (vide = original)",

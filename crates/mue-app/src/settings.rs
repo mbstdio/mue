@@ -22,7 +22,7 @@ use mue_core::{
     },
 };
 
-use crate::{platform, preferences, ui::SharedSettings};
+use crate::{components::FilenameTemplateEditor, platform, preferences, ui::SharedSettings};
 
 pub(crate) struct SettingsView {
     shared: SharedSettings,
@@ -752,15 +752,12 @@ impl Render for SettingsView {
                 .child(div().text_sm().child(self.t("Output format")))
                 .child(formats);
         }
-        form = form
-            .child(self.field("Output filename template", "filename-template"))
-            .child(self.hint("Variables: {filename} (original name without extension), {ext} (output extension), {profile} (profile name).", cx));
-        if audio {
-            form = form.child(self.hint("Example: {filename}-{profile}.{ext}. The output extension is added automatically if missing.", cx));
-        } else {
-            form = form
-                .child(self.hint("Dimensions: {width} / {height} (converted file), {source_width} / {source_height} (original file).", cx))
-                .child(self.hint("Examples: {filename}-web.{ext}, web-{filename}, {filename}-{width}x{height}.{ext}. The output extension is added automatically if missing.", cx));
+        form = form.child(FilenameTemplateEditor::new(
+            &self.inputs["filename-template"],
+            self.draft.format.kind(),
+            self.settings.general.language,
+        ));
+        if !audio {
             form = form.child(
                 div()
                     .flex()
